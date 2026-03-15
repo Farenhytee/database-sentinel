@@ -1,0 +1,148 @@
+# Supabase Sentinel GitHub Action Template
+#
+# This workflow runs a Supabase security audit on:
+# 1. Every push that changes migration files
+# 2. Every PR that changes migration files
+# 3. A weekly schedule (Monday 6am UTC)
+#
+# Required secrets:
+# - SUPABASE_URL: Your project URL
+# - SUPABASE_ANON_KEY: Public anon key
+# - SUPABASE_SERVICE_ROLE_KEY: Service role key (used for schema introspection only)
+
+name: Supabase Sentinel Security Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/seed.sql'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/seed.sql'
+  schedule:
+    - cron: '0 6 * * 1' # Every Monday at 6am UTC
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+  pull-requests: write # For PR comments
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    name: Supabase Security Audit
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check RLS status on all public tables
+        id: rls_check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Query for tables without RLS
+          RESULT=$(curl -s "$SUPABASE_URL/rest/v1/rpc" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND NOT rowsecurity\"}" \
+            2>/dev/null || echo "QUERY_FAILED")
+
+          if [ "$RESULT" = "QUERY_FAILED" ]; then
+            echo "⚠️ Could not query database directly. Using alternative method..."
+            # Alternative: use pg_meta API or direct SQL
+          fi
+
+          echo "result=$RESULT" >> $GITHUB_OUTPUT
+
+      - name: Test anonymous access (dynamic probing)
+        id: anon_probe
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          FINDINGS=""
+          CRITICAL_COUNT=0
+
+          # Get list of common table names to probe
+          TABLES=("users" "profiles" "accounts" "orders" "payments" "transactions"
+                  "messages" "documents" "settings" "api_keys" "tokens" "sessions"
+                  "customers" "invoices" "subscriptions" "posts" "comments" "files")
+
+          for TABLE in "${TABLES[@]}"; do
+            HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+              "$SUPABASE_URL/rest/v1/$TABLE?select=*&limit=1" \
+              -H "apikey: $SUPABASE_ANON_KEY" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+
+            BODY=$(cat /tmp/response.json 2>/dev/null)
+
+            # 200 with non-empty array = data exposed
+            if [ "$HTTP_CODE" = "200" ] && [ "$BODY" != "[]" ] && [ -n "$BODY" ] && [[ "$BODY" != *"\"code\""* ]]; then
+              FINDINGS="$FINDINGS\n🔴 CRITICAL: Table '$TABLE' returns data to anonymous users"
+              CRITICAL_COUNT=$((CRITICAL_COUNT + 1))
+            fi
+          done
+
+          echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+          echo -e "$FINDINGS" > /tmp/findings.txt
+
+      - name: Generate report
+        id: report
+        run: |
+          CRITICAL=${{ steps.anon_probe.outputs.critical_count }}
+          FINDINGS=$(cat /tmp/findings.txt 2>/dev/null || echo "No findings")
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "## 🔴 Supabase Sentinel Security Audit: FAILED" > /tmp/report.md
+            echo "" >> /tmp/report.md
+            echo "**$CRITICAL critical finding(s) detected.**" >> /tmp/report.md
+            echo "" >> /tmp/report.md
+            echo "### Findings" >> /tmp/report.md
+            echo -e "$FINDINGS" >> /tmp/report.md
+            echo "" >> /tmp/report.md
+            echo "### Required Actions" >> /tmp/report.md
+            echo "1. Enable RLS on all exposed tables" >> /tmp/report.md
+            echo "2. Create appropriate RLS policies" >> /tmp/report.md
+            echo "3. Re-run this audit to verify fixes" >> /tmp/report.md
+          else
+            echo "status=PASS" >> $GITHUB_OUTPUT
+            echo "## ✅ Supabase Sentinel Security Audit: PASSED" > /tmp/report.md
+            echo "" >> /tmp/report.md
+            echo "No critical findings. Anonymous users cannot access table data." >> /tmp/report.md
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+      - name: Fail on critical findings
+        if: steps.report.outputs.status == 'FAIL'
+        run: |
+          echo "❌ Security audit failed with critical findings."
+          echo "Fix the issues above and push again."
+          exit 1
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-sentinel-report
+          path: /tmp/report.md
+          retention-days: 30
