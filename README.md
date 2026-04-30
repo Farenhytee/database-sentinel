@@ -91,7 +91,7 @@ Copy the contents of `SKILL.md` into your system prompt or conversation, then fo
 | `RLS_PERFORMANCE` | `auth.uid()` not cached — performance degradation, potential DoS |
 | `PUBLIC_BUCKET` | Storage bucket publicly accessible without auth |
 | `SENSITIVE_COLUMNS` | Columns named `password`, `api_key`, etc. exposed via API |
-| + 9 more patterns | See `references/anti-patterns.md` for the full list |
+| + 9 more patterns | See `backends/supabase/anti-patterns.md` for the full list |
 
 ---
 
@@ -133,21 +133,37 @@ Copy the contents of `SKILL.md` into your system prompt or conversation, then fo
 
 ## File structure
 
+> **Note (Apr 2026):** Supabase Sentinel was renamed to **Sentinel** and is now multi-backend. The Supabase audit is unchanged — it lives at `backends/supabase/` under the new structure. A backwards-compat shim at `compat/supabase-sentinel/` preserves the old skill name. See `DECISIONS.md`.
+
 ```
-supabase-sentinel/
-├── SKILL.md                           # Core skill — 7-step audit workflow (333 lines)
+sentinel/
+├── SKILL.md                                # Dispatcher — detects backends, routes audits
+├── DECISIONS.md                            # Locked architecture decisions (D1-D4)
+├── core/
+│   ├── workflow.md                         # Universal 7-step audit workflow
+│   ├── detection.md                        # Backend detection + JSON manifest
+│   ├── scoring.md                          # Per-backend weights, min-aggregation
+│   ├── reporting.md                        # Unified report format (text + JSON)
+│   └── credentials.md                      # Public-vs-privileged key handling
+├── backends/
+│   └── supabase/                           # Phase 1 — implemented
+│       ├── workflow.md                     # 7-step audit specialized for Supabase
+│       ├── audit-queries.md                # 20 SQL queries for schema introspection
+│       ├── anti-patterns.md                # 27 vulnerability patterns (SB-001..SB-027)
+│       └── fix-templates.md                # SQL fix templates (7 RLS patterns + more)
+├── compat/
+│   └── supabase-sentinel/                  # Backwards-compat shim (forces backend=supabase)
+│       └── SKILL.md
 ├── references/
-│   ├── audit-queries.md               # 20 SQL queries for schema introspection
-│   ├── anti-patterns.md               # 27 vulnerability patterns with severity/detection/fix
-│   ├── fix-templates.md               # SQL fix templates — 7 RLS patterns, storage, auth, prevention
-│   └── vibe-coding-context.md         # CVE-2025-48757, research studies, platform analysis
+│   └── vibe-coding-context.md              # CVE-2025-48757, breach studies — cross-backend
 ├── assets/
-│   └── github-action-template.yml     # CI/CD workflow for continuous monitoring
+│   └── ci/
+│       └── github-action-supabase.yml      # Per-backend CI workflow
 ├── README.md
-└── LICENSE                            # MIT
+└── LICENSE                                 # MIT
 ```
 
-**How progressive disclosure works:** When Claude loads this skill, it only reads the 333-line `SKILL.md` initially (~5000 tokens). Reference files are loaded on-demand during specific audit steps — `audit-queries.md` at Step 1, `anti-patterns.md` at Step 2, `fix-templates.md` at Step 5. This keeps context usage efficient.
+**How progressive disclosure works:** Claude loads only `SKILL.md` (~2K tokens) plus `core/*` files initially. When detection identifies a backend, the matching `backends/<name>/workflow.md` and on-demand reference files load — keeping context efficient even as more backends are added in future phases.
 
 ---
 
@@ -161,7 +177,7 @@ Supabase Sentinel can generate a GitHub Action that:
 
 Just ask: "Set up continuous security monitoring for this project."
 
-See `assets/github-action-template.yml` for the template.
+See `assets/ci/github-action-supabase.yml` for the template.
 
 ---
 
@@ -205,8 +221,8 @@ Supabase's built-in Security Advisor (Splinter) runs 16 lints. Supabase Sentinel
 
 Contributions are welcome! The most valuable contributions are:
 
-1. **New anti-patterns** — Found a Supabase security issue not in our database? Add it to `references/anti-patterns.md` with severity, detection query, fix SQL, and real-world evidence.
-2. **Fix template improvements** — Better RLS policy patterns, edge cases, or performance optimizations in `references/fix-templates.md`.
+1. **New anti-patterns** — Found a Supabase security issue not in our database? Add it to `backends/supabase/anti-patterns.md` with severity, detection query, fix SQL, and real-world evidence.
+2. **Fix template improvements** — Better RLS policy patterns, edge cases, or performance optimizations in `backends/supabase/fix-templates.md`.
 3. **Testing on real projects** — Run Supabase Sentinel on your own Supabase projects and report false positives/negatives.
 4. **Platform-specific patterns** — Document security patterns specific to Lovable, Bolt, Replit, or other vibe-coding platforms.
 

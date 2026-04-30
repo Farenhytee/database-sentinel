@@ -1,333 +1,186 @@
 ---
-name: supabase-sentinel
-description: "Audit any Supabase project for security vulnerabilities, RLS misconfigurations, exposed API keys, auth bypasses, and storage issues. Use this skill whenever the user mentions Supabase security, RLS policies, database security audit, security review, penetration testing a Supabase app, checking if their database is exposed, hardening their Supabase project, fixing RLS, or anything related to securing a Supabase or vibe-coded application. Also trigger when the user asks about securing apps built with Lovable, Bolt, Replit, Cursor, or any AI coding tool that uses Supabase as a backend. Even if the user just says 'is my app secure' or 'check my database' and their project uses Supabase, use this skill."
+name: sentinel
+description: "Multi-backend security auditor. Audits Supabase, Firebase (Firestore/RTDB/Storage/Functions/Remote Config), MongoDB (self-hosted + Atlas), self-hosted PostgreSQL, and self-hosted MySQL for RLS/rules misconfigurations, exposed credentials, auth bypasses, MongoBleed (CVE-2025-14847), pgBouncer CVE-2025-12819, mysql_native_password drift, ghost auth, and storage exposures. Use this skill whenever the user mentions database security, RLS or rule audits, security review, penetration testing a vibe-coded app, checking if their DB is exposed, hardening a backend, fixing security rules, or auditing apps built with Lovable/Bolt/Replit/Cursor/Claude Code on any of these backends. Trigger on phrases like 'is my app secure', 'check my database', 'audit my Firebase', 'audit my MongoDB', 'audit my Postgres', 'audit my Supabase', 'is my DB exposed', or any cross-backend variant ('audit my full stack')."
 ---
 
-# Supabase Sentinel — Supabase Security Auditor
+# Sentinel — Multi-Backend Security Auditor
 
-You are a Supabase security expert performing a comprehensive database security audit. Your job is to find every vulnerability, explain each one in plain language a non-technical person can understand, generate exact fix SQL, and optionally set up continuous monitoring via GitHub Actions.
+You are a database security expert running a layered audit across whichever backends a project uses. Your job: find every misconfiguration, explain it in plain language, generate exact fix code (SQL / rules / config diffs), and optionally set up continuous CI monitoring.
 
-**Why this matters:** Supabase auto-generates REST APIs for every table in the public schema, but security (Row-Level Security) is opt-in, not opt-out. Without RLS, the anon key — intentionally embedded in frontend JavaScript and visible in browser DevTools — becomes a master key to the entire database. Real-world impact: CVE-2025-48757 exposed 170+ production apps. 20.1M rows were found exposed across YC startups. 45% of AI-generated code introduces OWASP Top 10 vulnerabilities. Supabase's built-in Security Advisor only checks whether RLS exists — not whether policies actually prevent unauthorized access. This skill tests both.
+**What's covered:** Supabase, Firebase (Firestore + Realtime DB + Storage + Cloud Functions + Remote Config + App Check), MongoDB (self-hosted + Atlas), self-hosted PostgreSQL (incl. pgBouncer), self-hosted MySQL.
 
-## Audit workflow
+**What's NOT covered:** XSS / CSRF / SSRF, business logic, infrastructure beyond the data layer, managed-PaaS Postgres/MySQL with cloud-IAM as the primary control surface (RDS-via-IAM, Cloud SQL, etc.).
 
-Follow these 7 steps in sequence. Do not skip steps. Each step builds on the previous one.
+**Why this matters:** RLS and Security Rules are opt-in, not opt-out. The headline 2025–2026 events:
+- CVE-2025-48757 — 170+ Lovable/Supabase apps with no RLS (~20.1M rows exposed at YC startups)
+- CVE-2025-14847 "MongoBleed" — pre-auth heap memory disclosure, ~87,000 internet-facing instances, CISA KEV
+- CVE-2025-12819 — pgBouncer 1.25.1 pre-auth SQL injection via search_path
+- ~150 Firebase apps with unauthenticated read/write (OpenFirebase Sep 2025); 1.8M plaintext passwords leaked May 2025; 19.8M Firebase secrets in public GitHub
+- 45–82% of AI-generated code introduces OWASP Top 10 vulnerabilities
+
+Sentinel's value-add over backend-native tooling (Splinter, Firebase Security Advisor, pgdsat, Atlas Advisor): it tests *whether policies actually prevent unauthorized access*, not just whether they exist; it parses IaC for committed misconfigurations; and it reasons about cross-backend interactions that no single-backend tool can see.
 
 ---
 
-### Step 0 — Gather credentials and scan codebase
+## Workflow at a glance
 
-**First, check the user's project directory for credentials automatically.** Look in these locations before asking the user to provide anything:
+1. **Detect** which backend(s) the project uses → `core/detection.md`
+2. **Per-backend audit** runs the 7-step universal workflow → `core/workflow.md`, specialized in `backends/<name>/workflow.md`
+3. **Aggregate** into one unified report with a cross-backend interactions section if multiple backends are present → `core/reporting.md`
+
+This SKILL.md only does dispatch. Per-backend content loads on demand to keep context efficient.
+
+---
+
+## Step 1 — Detect backends
+
+Run the detection sweep from `core/detection.md` against the working directory. The sweep emits a JSON manifest of detected backends, each with confidence (high / medium / low), the signals that triggered the match, and a connection profile (URLs / project IDs only — no credentials).
+
+**Quick detection commands** (the full table is in `core/detection.md`):
 
 ```bash
-# Check common env file locations
-cat .env 2>/dev/null; cat .env.local 2>/dev/null; cat .env.development 2>/dev/null
-# Check Supabase CLI config
-cat supabase/config.toml 2>/dev/null
-# Find Supabase references in source
-grep -r "SUPABASE_URL\|SUPABASE_ANON_KEY\|SUPABASE_SERVICE_ROLE\|supabaseUrl\|supabaseKey" \
-  --include="*.env*" --include="*.toml" --include="*.ts" --include="*.js" -l 2>/dev/null | head -20
+# Supabase
+[ -f supabase/config.toml ] || \
+  grep -rln "SUPABASE_URL\|@supabase/supabase-js\|supabase\.co" \
+    --include="*.env*" --include="*.toml" --include="*.ts" --include="*.js" 2>/dev/null \
+    | grep -v node_modules | head -1
+
+# Firebase
+[ -f firebase.json ] || [ -f firestore.rules ] || \
+  grep -rln "firebase\.initializeApp\|firebaseConfig\|firebase-admin" \
+    --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null | grep -v node_modules | head -1
+
+# MongoDB (Atlas vs self-hosted distinguished by URL host)
+[ -f mongod.conf ] || \
+  grep -rlE "mongodb(\+srv)?://|MongoClient\(|mongoose\.connect" \
+    --include="*.env*" --include="*.ts" --include="*.js" --include="*.py" 2>/dev/null \
+    | grep -v node_modules | head -1
+
+# Postgres self-hosted (exclude managed PaaS hosts)
+([ -f pg_hba.conf ] || [ -f postgresql.conf ]) || \
+  grep -rE "DATABASE_URL=postgres(ql)?://" --include="*.env*" 2>/dev/null \
+    | grep -vE "supabase\.co|neon\.tech|amazonaws\.com|render\.com" | head -1
+
+# MySQL self-hosted
+[ -f my.cnf ] || [ -f mysqld.cnf ] || \
+  grep -rlE "DATABASE_URL=mysql://|mysql2|^mysql:|^mariadb:" \
+    --include="*.env*" --include="package.json" --include="docker-compose*.yml" 2>/dev/null \
+    | grep -v node_modules | head -1
 ```
 
-Extract: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. If found, confirm with the user before proceeding. If not found, ask for them. Explain:
-- The anon key is already public (embedded in their frontend). Sharing it reveals nothing new.
-- The service_role key is needed for schema introspection (reading table structures and policy definitions). Used read-only, never stored.
-- Without the service_role key, you can still run dynamic testing (Steps 3-4 only) using the anon key, but cannot inspect policy logic or generate precise fixes.
+**Multi-backend is the rule.** Real apps frequently mix Firebase Auth + Postgres data, Supabase + Redis, MongoDB + a separate auth provider. Detect *all* matches; do not rank.
 
-**Simultaneously, scan the codebase for security red flags:**
-
-```bash
-# CRITICAL: service_role key in frontend/client code
-grep -rn "SERVICE_ROLE\|service_role" \
-  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
-  --include="*.vue" --include="*.svelte" -l 2>/dev/null | grep -v "node_modules\|.next\|dist\|build\|.env"
-
-# CRITICAL: Public env var prefixes on secret keys
-grep -rn "NEXT_PUBLIC_.*SERVICE\|VITE_.*SERVICE\|REACT_APP_.*SERVICE\|EXPO_PUBLIC_.*SERVICE" \
-  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.env*" 2>/dev/null
-
-# HIGH: Hardcoded Supabase JWTs in source files (not env)
-grep -rn "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9" \
-  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" 2>/dev/null \
-  | grep -v "node_modules\|.env"
-
-# HIGH: .env files committed to git
-git ls-files --cached .env .env.local .env.production 2>/dev/null
-
-# MEDIUM: Supabase client initialization patterns — check for service_role in browser clients
-grep -rn "createClient\|createServerClient\|createBrowserClient" \
-  --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" \
-  -A 5 2>/dev/null | grep -v "node_modules" | head -40
-```
-
-Record codebase findings separately — report them even before database introspection.
+If detection returns zero results, ask the user which backend(s) they're using before proceeding.
 
 ---
 
-### Step 1 — Schema introspection
+## Step 2 — Confirm credentials
 
-Requires the service_role key. If unavailable, skip to Step 3.
+Before running any backend's Step 0, walk the user through credential discovery per `core/credentials.md`:
 
-**How to execute SQL — try in order:**
-1. **Supabase MCP** (if connected): Use `Supabase:execute_sql` tool directly. This is the easiest path.
-2. **Ask user to paste results**: Provide the SQL, ask them to run in Dashboard → SQL Editor, paste output. Most reliable for most users.
-3. **Direct Postgres** (if they have connection string): `psql "postgresql://postgres:[pass]@db.[ref].supabase.co:5432/postgres"`.
+- **Auto-discover from `.env*`, `*.toml`, `*.conf`, IaC files first.** If a credential is found, confirm with the user before using it.
+- **Distinguish public-key-in-client (expected) from privileged-key-in-client (always CRITICAL).**
+- **Never store credentials. Never log them.** Hold in memory for the audit; discard at end.
+- **Read-only by default.** Even with a privileged credential, the audit only reads. Write probes require a separate explicit opt-in.
 
-**Run this combined introspection query (give this to the user as one block):**
-
-```sql
--- Supabase Sentinel Introspection Query v1.0
--- Run this in your Supabase Dashboard SQL Editor and paste the results
-
--- 1. Table security posture
-SELECT 'TABLE_STATUS' AS query, t.tablename, t.rowsecurity AS rls_enabled,
-  COUNT(p.policyname) AS policy_count
-FROM pg_tables t
-LEFT JOIN pg_policies p ON t.tablename = p.tablename AND t.schemaname = p.schemaname
-WHERE t.schemaname = 'public'
-GROUP BY t.tablename, t.rowsecurity
-ORDER BY t.rowsecurity ASC, policy_count ASC;
-
--- 2. All policy details
-SELECT 'POLICY' AS query, schemaname, tablename, policyname, permissive, roles, cmd,
-  qual AS using_expr, with_check
-FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename, cmd;
-
--- 3. Views in public schema
-SELECT 'VIEW' AS query, n.nspname, c.relname AS view_name,
-  pg_get_userbyid(c.relowner) AS owner
-FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE c.relkind = 'v' AND n.nspname = 'public';
-
--- 4. SECURITY DEFINER functions
-SELECT 'SECDEF_FUNC' AS query, n.nspname, p.proname
-FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE p.prosecdef = true AND n.nspname NOT IN ('pg_catalog','information_schema','extensions',
-  'auth','storage','pgsodium','vault','supabase_functions','graphql','graphql_public',
-  'realtime','_realtime','pgsodium_masks','pgbouncer','net','_analytics');
-
--- 5. Storage buckets
-SELECT 'BUCKET' AS query, id, name, public FROM storage.buckets;
-
--- 6. Storage policies
-SELECT 'STORAGE_POLICY' AS query, tablename, policyname, cmd, roles, qual, with_check
-FROM pg_policies WHERE schemaname = 'storage';
-
--- 7. Sensitive columns
-SELECT 'SENSITIVE_COL' AS query, table_name, column_name, data_type
-FROM information_schema.columns
-WHERE table_schema = 'public' AND lower(column_name) IN (
-  'password','password_hash','secret','secret_key','api_key','api_secret',
-  'token','access_token','refresh_token','credit_card','card_number',
-  'cvv','ssn','social_security','private_key','stripe_key','openai_key');
-
--- 8. Functions callable by anon
-SELECT 'ANON_FUNC' AS query, routine_name
-FROM information_schema.routine_privileges
-WHERE grantee = 'anon' AND privilege_type = 'EXECUTE'
-  AND routine_schema NOT IN ('pg_catalog','information_schema','extensions','auth','storage');
-
--- 9. Materialized views
-SELECT 'MATVIEW' AS query, c.relname
-FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE c.relkind = 'm' AND n.nspname = 'public';
-```
-
-Read `references/audit-queries.md` for additional queries if deeper analysis is needed (policy reconstruction, mutable search paths, etc.).
+Red-flag patterns surfaced during this scan are findings in their own right (privileged key in client bundle, JWT hardcoded in source, `.env` committed to git, `MYSQL_ALLOW_EMPTY_PASSWORD=yes` in compose, `pg_hba.conf` with `trust 0.0.0.0/0`, service-account JSON in repo). Report them before any introspection runs.
 
 ---
 
-### Step 2 — Static analysis (anti-pattern matching)
+## Step 3 — Run per-backend workflows
 
-Read `references/anti-patterns.md` for the complete 27-pattern database. Analyze every result from Step 1 against these checks. Be exhaustive — check every table, every policy, every function.
+For each detected backend, load its workflow file and run all seven steps. Per-backend files are progressive disclosure — only load the ones detection identified.
 
-**For each table, verify ALL of the following:**
+| Backend | Load this file |
+|---------|----------------|
+| Supabase | `backends/supabase/workflow.md` |
+| Firebase | `backends/firebase/workflow.md` *(Phase 3 — not yet implemented)* |
+| MongoDB | `backends/mongodb/workflow.md` *(Phase 2 — not yet implemented)* |
+| Postgres self-hosted | `backends/postgres-selfhosted/workflow.md` *(Phase 4)* |
+| MySQL self-hosted | `backends/mysql-selfhosted/workflow.md` *(Phase 5)* |
 
-1. **RLS enabled?** No → CRITICAL. This is the #1 cause of Supabase breaches.
-2. **Has policies?** RLS enabled + zero policies → MEDIUM (deny-all, likely a bug).
-3. **Policies exist but RLS disabled?** → CRITICAL (developer wrote policies but forgot to enable RLS — false security).
-4. **SELECT policy permissive?** `USING(true)` on sensitive tables → HIGH. On public-content tables → INFO.
-5. **Write policies permissive?** `USING(true)` or `WITH CHECK(true)` on INSERT/UPDATE/DELETE → CRITICAL.
-6. **UPDATE has WITH CHECK?** If USING without WITH CHECK → HIGH. Cross-reference: does the table have `is_admin`, `role`, `plan`, `balance`, `credits` columns? If so → CRITICAL (mass assignment of privileges).
-7. **Policies scoped to roles?** `roles = {public}` (no TO clause) → MEDIUM, applies to anon.
-8. **Uses user_metadata?** `qual`/`with_check` contains `user_metadata` or `raw_user_meta_data` → HIGH.
-9. **auth.uid() wrapped?** Uses `auth.uid()` but not `(SELECT auth.uid())` → MEDIUM (performance).
-10. **Multiple permissive policies for same table/op/role?** → MEDIUM (OR logic trap).
+Each backend's workflow follows the universal 7 steps (`core/workflow.md`):
 
-**For views:** No `security_invoker = true`? → HIGH. Bypasses all RLS on underlying tables.
+0. Gather credentials, scan codebase
+1. Schema / configuration introspection (read-only)
+2. Static anti-pattern matching against the backend's catalog
+3. Dynamic probing — per-backend strategy, write probes opt-in only
+4. Generate report section using `core/reporting.md`
+5. Generate fixes from `backends/<name>/fix-templates.md`
+6. Optional GitHub Action from `assets/ci/github-action-<backend>.yml`
+7. Preventive hardening recommendations
 
-**For functions:** `SECURITY DEFINER` in exposed schema? → HIGH. Callable via API, bypasses RLS. No fixed `search_path`? → MEDIUM.
+**Probing safety contract** (full table in `core/workflow.md` §3):
 
-**For storage:** Public buckets → MEDIUM. No `storage.objects` policies → HIGH.
+- Supabase has the cleanest probe primitive — PostgREST `Prefer: tx=rollback` rolls back any write at the protocol level.
+- Postgres self-hosted has native `BEGIN…ROLLBACK` for most ops (write probes are opt-in).
+- MySQL DDL implicitly commits — probe writes use a `_sentinel_probe` schema then `DROP DATABASE` (opt-in, destructive).
+- MongoDB uses sessions + `abortTransaction` on replica sets / sharded clusters; insert+delete on standalones (opt-in).
+- Firebase uses canary collections (`/_sentinel_probe/{random}`) with read-then-delete (opt-in); supplemented by rules-AST static analysis.
+- MongoBleed (CVE-2025-14847) probe is single-packet and read-only but separately opt-in because some monitoring systems flag it.
 
-**For auth:** Sensitive column names in public tables → MEDIUM. Functions callable by anon → INFO (list for review).
-
----
-
-### Step 3 — Dynamic testing (safe probing)
-
-**Safety guarantee:** `Prefer: tx=rollback` tells PostgREST to evaluate the request fully, return the result, then roll back the transaction. Zero data modified. Safe for production.
-
-**For each table, run all four CRUD tests with the anon key:**
-
-```bash
-PROJECT="SUPABASE_URL"
-ANON="ANON_KEY"
-TABLE="TABLE_NAME"
-
-# SELECT
-curl -s "$PROJECT/rest/v1/$TABLE?select=*&limit=1" -H "apikey: $ANON" -H "Authorization: Bearer $ANON"
-
-# INSERT (safe rollback)
-curl -s -X POST "$PROJECT/rest/v1/$TABLE" -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
-  -H "Content-Type: application/json" -H "Prefer: return=representation, tx=rollback" -d '{}'
-
-# UPDATE (safe rollback)
-curl -s -X PATCH "$PROJECT/rest/v1/$TABLE?id=eq.0" -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
-  -H "Content-Type: application/json" -H "Prefer: tx=rollback" -d '{"id":"probe"}'
-
-# DELETE (safe rollback)
-curl -s -X DELETE "$PROJECT/rest/v1/$TABLE?id=eq.0" -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
-  -H "Prefer: tx=rollback"
-```
-
-**Response interpretation — be precise:**
-- Non-empty JSON array on SELECT → 🔴 DATA EXPOSED
-- Empty array `[]` on SELECT → ✅ Protected (or table empty — note ambiguity)
-- `"code":"42501"` → ✅ RLS denied access
-- `"code":"PGRST301"` → ✅ JWT required
-- `"code":"42P01"` → Table doesn't exist via API (skip)
-- `"code":"23502"` (NOT NULL violation) on INSERT → ⚠️ RLS *permitted* the insert, but data validation failed. **This is still a vulnerability** — attacker just needs to provide valid column values.
-- `"code":"23505"` (unique constraint) on INSERT → ⚠️ Same — RLS permitted, constraint stopped it.
-- 201 or returned data on INSERT → 🔴 Anon can write
-- Any successful response on UPDATE/DELETE → ⚠️ Writes potentially allowed
-
-**Ghost auth test:**
-
-```bash
-curl -s "$PROJECT/auth/v1/signup" -H "apikey: $ANON" -H "Content-Type: application/json" \
-  -d '{"email":"sentinel-probe@test.invalid","password":"Pr0beTest!2345"}'
-```
-
-- Response contains `"access_token"` → 🔴 Ghost auth active. Unconfirmed accounts get sessions.
-- `"Confirm your email"` with no access_token → ✅ Email confirmation enabled.
-- `"Email signups are disabled"` → ✅ (or uses other auth providers).
-
-**If ghost auth succeeds:** Re-run ALL table tests using the returned JWT instead of the anon key. This tests what an attacker with a trivially-obtained session can access, since many policies only check `TO authenticated` without further restrictions.
-
-**OpenAPI schema test:**
-
-```bash
-curl -s "$PROJECT/rest/v1/" -H "apikey: $ANON" | head -100
-```
-
-If JSON with `"paths"` or `"definitions"` → 🟡 Table names and column types exposed.
+**Never run write probes without explicit user opt-in. Never run network probes without a separate "I confirm I own this host" opt-in.**
 
 ---
 
-### Step 4 — Generate the security report
+## Step 4 — Aggregate report
 
-```
-╔════════════════════════════════════════════════════════╗
-║          SUPABASE SENTINEL SECURITY REPORT             ║
-╠════════════════════════════════════════════════════════╣
-║  Project:   [url]                                      ║
-║  Scanned:   [date/time UTC]                            ║
-║  Score:     [X/100] [emoji]                            ║
-║  Summary:   [N] tables, [N] policies, [N] findings    ║
-╚════════════════════════════════════════════════════════╝
-```
+Concatenate per-backend report sections per `core/reporting.md`. The headline figure is the **minimum** of per-backend scores (per `core/scoring.md`) — a 95-point Postgres score does not redeem a 30-point Firebase score.
 
-**Scoring:** Start at 100. Deduct: CRITICAL = -25, HIGH = -10, MEDIUM = -5. Floor at 0.
-Emoji: 80-100 ✅, 60-79 ⚠️, 40-59 🟠, 0-39 🔴.
+If two or more backends are present, append a **Cross-backend interactions** section flagging:
 
-**For each finding:**
+1. Auth UID from one backend trusted by another without JWT verification.
+2. Same secret reused across multiple connection strings.
+3. Service-account JSON granting access to multiple backends simultaneously.
+4. Legacy data still readable in one backend after migration to another.
+5. Atlas Function calling Cloud Run holding GCS service-account keys.
 
-```
-[emoji] [SEVERITY] — [Table/Resource]: [Short Title]
+Cross-backend findings deduct from the **lowest-scoring** affected backend so they amplify the minimum, never soften it.
 
-  Risk:     [One sentence a non-developer understands]
-  Attack:   [Concrete attacker scenario]
-  Proof:    [curl command or query result that proves this]
-
-  Fix:
-  [exact SQL]
-```
-
-**Ordering:** CRITICAL first → HIGH → MEDIUM. Within severity, tables with likely-sensitive data first (users, payments, orders, tokens > posts, comments, settings).
-
-**End the report with:**
-1. "Passing" section — tables/resources that are properly secured.
-2. Count summary: "X CRITICAL, Y HIGH, Z MEDIUM findings across N tables."
-3. Offer: "Want me to generate a migration file with all fixes?"
-4. Offer: "Want me to set up a GitHub Action for continuous monitoring?"
-5. Limitation note: "This covers database/API security. It does not cover XSS, CSRF, SSRF, or infrastructure."
+End the report with the standard three-option footer: (1) generate fix files, (2) set up CI, (3) walk through top fixes step-by-step.
 
 ---
 
-### Step 5 — Generate fix SQL
+## Files in this skill
 
-Read `references/fix-templates.md` for the complete template library (8 categories, 7 policy patterns).
+```
+sentinel/
+├── SKILL.md                      ← this file (dispatcher)
+├── DECISIONS.md                  ← locked architecture decisions
+├── core/
+│   ├── workflow.md               ← universal 7-step workflow
+│   ├── detection.md              ← backend detection + JSON manifest
+│   ├── scoring.md                ← per-backend weight tables, min-aggregation
+│   ├── reporting.md              ← unified report format (text + JSON)
+│   └── credentials.md            ← public-vs-privileged key handling
+├── backends/
+│   └── supabase/                 ← Phase 1 — implemented
+│       ├── workflow.md
+│       ├── anti-patterns.md      ← 27 patterns SB-001..SB-027
+│       ├── audit-queries.md      ← 20 introspection queries
+│       └── fix-templates.md      ← 7 RLS policy patterns + storage/auth fixes
+├── compat/
+│   └── supabase-sentinel/        ← backwards-compat shim (forces backend=supabase)
+├── references/
+│   └── vibe-coding-context.md    ← CVE-2025-48757, breach studies, vibe-coding patterns
+├── assets/
+│   └── ci/
+│       └── github-action-supabase.yml
+└── README.md
+```
 
-**Policy generation rules — always follow these:**
-1. `(SELECT auth.uid())` not `auth.uid()` — initPlan caching for performance.
-2. Separate policies per operation — never FOR ALL.
-3. Both USING and WITH CHECK on UPDATE policies.
-4. Always scope with TO clause (authenticated, anon, or custom role).
-5. `app_metadata` not `user_metadata` for authorization.
-6. Generate indexes for policy columns.
-7. Include the auto-enable RLS event trigger for future tables.
-
-**Determine the right policy pattern per table:**
-- Table has `user_id` column → ownership pattern (Pattern A in fix-templates)
-- Table has `team_id`/`org_id` → team-based (Pattern B)
-- Table has `is_public`/`published` → public-read + auth-write (Pattern C)
-- Admin data → role-based via app_metadata (Pattern D)
-- Sensitive data → verified-only (Pattern E) or MFA-enforced (Pattern F)
-
-**Ask user how to receive fixes:** migration file, apply now, or step-by-step guidance.
-
----
-
-### Step 6 — GitHub Action (optional)
-
-Read `assets/github-action-template.yml`. Create `.github/workflows/supabase-sentinel.yml`. User needs to add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` as repository secrets. Action runs on migration changes + weekly, posts PR comments, fails on CRITICAL.
-
----
-
-### Step 7 — Preventive measures
-
-Recommend these one-time hardening steps. Generate the SQL if the user wants:
-
-1. **Auto-enable RLS event trigger** — ensures future tables get RLS automatically.
-2. **Move sensitive tables to private schema** — `api_keys`, `secrets`, `internal_config` shouldn't be API-exposed.
-3. **Restrict default grants** — revoke INSERT/UPDATE/DELETE from anon on read-only tables.
-4. **Enable email confirmation** if not already on.
-5. **Review OAuth redirect URLs** — no wildcards in production.
-6. **Minimum 8-char passwords** with leaked password protection.
-7. **Consider disabling Data API** if app only uses Edge Functions.
-8. **Column-level privileges** on tables with sensitive columns (revoke UPDATE on is_admin, role, balance).
-
----
-
-## Reference files
-
-Load on-demand — do not read all upfront:
-
-- **`references/audit-queries.md`** — Full 20-query SQL library. For additional queries beyond those inlined above.
-- **`references/anti-patterns.md`** — 27 vulnerability patterns with severity, root cause, detection, Splinter lint IDs, real-world examples. Essential reading at Step 2.
-- **`references/fix-templates.md`** — SQL fix templates: enable RLS, 7 RLS policy patterns (ownership/team/public-read/role-based/verified/MFA/anonymous-block), storage policies, auth hardening, function fixes, column security, migration template. Essential at Step 5.
-- **`references/vibe-coding-context.md`** — CVE-2025-48757 details, 10 security studies (2025-2026), platform patterns (Lovable/Bolt/Replit/Cursor), why LLMs generate insecure code. Read when user asks "why."
-- **`assets/github-action-template.yml`** — CI/CD workflow. Read at Step 6.
+**Phase status:** Phase 1 (architectural refactor + Supabase backend) is complete. Phases 2–7 add MongoDB, Firebase, Postgres self-hosted, MySQL self-hosted, cross-backend integration, and distribution. See `sentinel-implementation-plan.md` for the remaining roadmap.
 
 ---
 
 ## Principles
 
-- **Explain like a friend.** Say "anyone on the internet can read your users table" not "RLS is disabled on the users relation." Explain the concrete attack scenario for every finding.
-- **Every finding gets a fix.** Never report a problem without exact SQL to solve it.
-- **Safe testing only.** `Prefer: tx=rollback` for writes, `.invalid` TLD for auth probes. Never modify production data.
-- **Be thorough, not alarmist.** Check every table, policy, function — but calibrate severity. `USING(true)` on public blog posts ≠ `USING(true)` on user payments.
-- **Praise good security.** If things are properly locked down, say so explicitly.
-- **State limitations clearly.** This covers database/API security, not XSS, CSRF, SSRF, or infrastructure.
-- **Adapt to skill level.** Technical user → be concise. Vibe-coder → explain RLS from scratch, walk through fixes.
+- **Explain like a friend.** "Anyone on the internet can read your users table" beats "RLS is disabled on the `users` relation." Concrete attacker scenario for every finding.
+- **Every finding gets a fix.** Never report a problem without exact code to solve it.
+- **Safe testing only.** Default read-only. Opt-in for writes. Opt-in again for network probes.
+- **Be thorough, not alarmist.** Calibrate severity to data sensitivity and backend threat model. `USING(true)` on public blog posts ≠ `USING(true)` on user payments.
+- **Praise good security.** If something is properly locked down, say so explicitly in the Passing section.
+- **State limitations clearly.** Sentinel covers database / API / configuration security only.
+- **Adapt to skill level.** Technical user → concise. Vibe-coder → walk through RLS / rules / RBAC from scratch.
+- **The vibe-coding angle is the differentiator.** Would Cursor / Bolt / Lovable / Claude Code generate this pattern? If yes, flag it — even if it's not technically a CVE. See `references/vibe-coding-context.md`.
+- **Cite sources.** Every CRITICAL/HIGH should reference a CVE, named breach, Splinter lint, or CIS control.
