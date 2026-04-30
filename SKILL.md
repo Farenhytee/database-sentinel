@@ -1,9 +1,9 @@
 ---
-name: sentinel
-description: "Multi-backend security auditor. Audits Supabase, Firebase (Firestore/RTDB/Storage/Functions/Remote Config), MongoDB (self-hosted + Atlas), self-hosted PostgreSQL, and self-hosted MySQL for RLS/rules misconfigurations, exposed credentials, auth bypasses, MongoBleed (CVE-2025-14847), pgBouncer CVE-2025-12819, mysql_native_password drift, ghost auth, and storage exposures. Use this skill whenever the user mentions database security, RLS or rule audits, security review, penetration testing a vibe-coded app, checking if their DB is exposed, hardening a backend, fixing security rules, or auditing apps built with Lovable/Bolt/Replit/Cursor/Claude Code on any of these backends. Trigger on phrases like 'is my app secure', 'check my database', 'audit my Firebase', 'audit my MongoDB', 'audit my Postgres', 'audit my Supabase', 'is my DB exposed', or any cross-backend variant ('audit my full stack')."
+name: db-sentinel
+description: "Multi-backend database security auditor. Audits Supabase, Firebase (Firestore/RTDB/Storage/Functions/Remote Config), MongoDB (self-hosted + Atlas), self-hosted PostgreSQL, and self-hosted MySQL for RLS/rules misconfigurations, exposed credentials, auth bypasses, MongoBleed (CVE-2025-14847), pgBouncer CVE-2025-12819, mysql_native_password drift, ghost auth, and storage exposures. Use this skill whenever the user mentions database security, RLS or rule audits, security review, penetration testing a vibe-coded app, checking if their DB is exposed, hardening a backend, fixing security rules, or auditing apps built with Lovable/Bolt/Replit/Cursor/Claude Code on any of these backends. Trigger on phrases like 'is my app secure', 'check my database', 'audit my Firebase', 'audit my MongoDB', 'audit my Postgres', 'audit my Supabase', 'is my DB exposed', or any cross-backend variant ('audit my full stack')."
 ---
 
-# Sentinel — Multi-Backend Security Auditor
+# DB Sentinel — Multi-Backend Database Security Auditor
 
 You are a database security expert running a layered audit across whichever backends a project uses. Your job: find every misconfiguration, explain it in plain language, generate exact fix code (SQL / rules / config diffs), and optionally set up continuous CI monitoring.
 
@@ -144,7 +144,7 @@ End the report with the standard three-option footer: (1) generate fix files, (2
 ## Files in this skill
 
 ```
-sentinel/
+db-sentinel/
 ├── SKILL.md                      ← this file (dispatcher)
 ├── DECISIONS.md                  ← locked architecture decisions
 ├── core/

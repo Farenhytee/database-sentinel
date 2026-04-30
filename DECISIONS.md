@@ -1,18 +1,18 @@
-# Sentinel — Locked Decisions
+# DB Sentinel — Locked Decisions
 
-Decisions made before Phase 1 begins, per `sentinel-implementation-plan.md` §0. Subsequent sessions should treat these as immutable unless explicitly overturned.
+Decisions made before Phase 1 begins, per `sentinel-implementation-plan.md` §0. Subsequent sessions should treat these as immutable unless explicitly overturned. Overturns are recorded inline with date.
 
 | ID | Question | Decision | Rationale |
 |----|----------|----------|-----------|
 | **D1** | Repo strategy: monorepo or multi-repo? | **Monorepo** at `/Library/Personal/supabase skill/` (current path). | Single skill folder containing all backends. One git history; refactors cross boundaries cleanly. |
-| **D2** | Root skill name | **`sentinel`** | Drops Supabase-specific framing now that the skill is multi-backend. The skill `name:` field in `SKILL.md` frontmatter is `sentinel`. |
+| **D2** | Root skill name | **`db-sentinel`** *(superseded `sentinel`, 2026-04-30)* | Originally `sentinel`. Renamed to `db-sentinel` to make the database-security framing explicit in skill discovery — `sentinel` alone reads as ambiguous. The skill `name:` field in `SKILL.md` frontmatter is `db-sentinel`. The project is referred to as **DB Sentinel** in user-facing docs (README, report headers); shorthand "Sentinel" is fine in internal references where context is clear. |
 | **D3** | Backwards compatibility for `supabase-sentinel` | **Yes — ship a stub.** A second skill named `supabase-sentinel` exists at `compat/supabase-sentinel/SKILL.md` and forces `--backend supabase` against the dispatcher. Sunset date TBD; keep through at least the next minor release. | Existing users have it installed. Silent breakage is unacceptable. |
 | **D4** | Where the work happens | **Local-only branch.** No GitHub remote configured. PRs are not part of the workflow yet. | Matches current repo state (no remote in `git remote -v`). |
 
 ## Conventions derived from these decisions
 
-- Skill name in YAML frontmatter at the root: `name: sentinel`
-- Backwards-compat stub frontmatter: `name: supabase-sentinel`, body delegates to `sentinel` with `backend=supabase` pinned
+- Skill name in YAML frontmatter at the root: `name: db-sentinel`
+- Backwards-compat stub frontmatter: `name: supabase-sentinel`, body delegates to `db-sentinel` with `backend=supabase` pinned
 - Per-backend modules live at `backends/<name>/` with the structure defined in `sentinel-implementation-plan.md` §1
 - `references/` at the root holds cross-backend material (vibe-coding-context, CVE feed, tooling)
 - `assets/ci/` holds per-backend GitHub Action templates
