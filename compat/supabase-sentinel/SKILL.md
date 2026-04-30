@@ -1,19 +1,19 @@
 ---
 name: supabase-sentinel
-description: "Audit any Supabase project for security vulnerabilities, RLS misconfigurations, exposed API keys, auth bypasses, and storage issues. Use this skill whenever the user mentions Supabase security, RLS policies, database security audit, security review, penetration testing a Supabase app, checking if their database is exposed, hardening their Supabase project, fixing RLS, or anything related to securing a Supabase or vibe-coded application. Also trigger when the user asks about securing apps built with Lovable, Bolt, Replit, Cursor, or any AI coding tool that uses Supabase as a backend. Even if the user just says 'is my app secure' or 'check my database' and their project uses Supabase, use this skill. (DEPRECATED: this skill is a backwards-compat shim. Prefer the multi-backend `db-sentinel` skill, which covers Supabase plus Firebase, MongoDB, self-hosted Postgres, and self-hosted MySQL.)"
+description: "Audit any Supabase project for security vulnerabilities, RLS misconfigurations, exposed API keys, auth bypasses, and storage issues. Use this skill whenever the user mentions Supabase security, RLS policies, database security audit, security review, penetration testing a Supabase app, checking if their database is exposed, hardening their Supabase project, fixing RLS, or anything related to securing a Supabase or vibe-coded application. Also trigger when the user asks about securing apps built with Lovable, Bolt, Replit, Cursor, or any AI coding tool that uses Supabase as a backend. Even if the user just says 'is my app secure' or 'check my database' and their project uses Supabase, use this skill. (DEPRECATED: this skill is a backwards-compat shim. Prefer the multi-backend `database-sentinel` skill, which covers Supabase plus Firebase, MongoDB, self-hosted Postgres, and self-hosted MySQL.)"
 ---
 
 # Supabase Sentinel — backwards-compat shim
 
-> **DEPRECATED.** This skill exists only to preserve the original `supabase-sentinel` trigger surface for users who installed it before the multi-backend rename. New audits should use the **`db-sentinel`** skill (one level up at the repo root), which handles Supabase identically and adds Firebase, MongoDB, self-hosted Postgres, and self-hosted MySQL.
+> **DEPRECATED.** This skill exists only to preserve the original `supabase-sentinel` trigger surface for users who installed it before the multi-backend rename. New audits should use the **`database-sentinel`** skill (one level up at the repo root), which handles Supabase identically and adds Firebase, MongoDB, self-hosted Postgres, and self-hosted MySQL.
 >
-> Sunset date: TBD — keep at minimum through the next minor release of DB Sentinel. After that, this stub will be removed and `supabase-sentinel` will resolve to the multi-backend skill via skill-name aliasing.
+> Sunset date: TBD — keep at minimum through the next minor release of Database Sentinel. After that, this stub will be removed and `supabase-sentinel` will resolve to the multi-backend skill via skill-name aliasing.
 
 ## What this shim does
 
 When invoked, this skill:
 
-1. Loads the parent **`db-sentinel`** skill's workflow.
+1. Loads the parent **`database-sentinel`** skill's workflow.
 2. Forces the audit to **Supabase only** — even if other backends are detected in the working directory, only the Supabase audit runs.
 3. Behaves identically to the v1 Supabase Sentinel: same 7-step workflow, same 27 anti-patterns (`SB-001..SB-027`), same fix templates, same CI workflow template.
 
@@ -26,7 +26,7 @@ Same as before — say things like:
 - "Check my RLS policies"
 - "Run a security review of this Supabase app"
 
-The shim will dispatch to the multi-backend `db-sentinel` skill with `backend=supabase` pinned.
+The shim will dispatch to the multi-backend `database-sentinel` skill with `backend=supabase` pinned.
 
 ## Behavior contract
 
@@ -45,9 +45,9 @@ The shim **must not**:
 
 ## Migration
 
-Users who want multi-backend coverage should invoke `db-sentinel` instead — same triggers, broader coverage. No project changes are needed; detection picks up the additional backends automatically.
+Users who want multi-backend coverage should invoke `database-sentinel` instead — same triggers, broader coverage. No project changes are needed; detection picks up the additional backends automatically.
 
-If only Supabase is in use, `db-sentinel` and `supabase-sentinel` produce identical output. The rename is purely about expanding the trigger surface.
+If only Supabase is in use, `database-sentinel` and `supabase-sentinel` produce identical output. The rename is purely about expanding the trigger surface.
 
 ---
 

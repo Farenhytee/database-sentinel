@@ -1,16 +1,16 @@
-# 🛡️ DB Sentinel
+# 🛡️ Database Sentinel
 
 **A Claude Skill that audits your database backends for security vulnerabilities.**
 
 Drop it into Claude Code, Cursor, or any Claude-powered environment. Say "audit my database" and get a comprehensive security report with exact fix code — in minutes, not days.
 
-> **170+ Lovable apps were breached.** 20.1M rows were exposed across YC startups. ~87,000 MongoDB instances were left vulnerable to MongoBleed (CVE-2025-14847, CISA KEV). 1.8M Firebase passwords leaked in a single 2025 incident. 45% of AI-generated code introduces OWASP Top 10 vulnerabilities. DB Sentinel tests whether your security configuration *actually works* — not just whether it's present.
+> **170+ Lovable apps were breached.** 20.1M rows were exposed across YC startups. ~87,000 MongoDB instances were left vulnerable to MongoBleed (CVE-2025-14847, CISA KEV). 1.8M Firebase passwords leaked in a single 2025 incident. 45% of AI-generated code introduces OWASP Top 10 vulnerabilities. Database Sentinel tests whether your security configuration *actually works* — not just whether it's present.
 
 ---
 
 ## What it does
 
-DB Sentinel performs a 7-step security audit on whichever backend(s) your project uses:
+Database Sentinel performs a 7-step security audit on whichever backend(s) your project uses:
 
 1. **Detects** which backends you're using (Supabase, Firebase, MongoDB, self-hosted Postgres / MySQL)
 2. **Scans your codebase** for exposed credentials, hardcoded keys, secrets in git
@@ -36,7 +36,7 @@ Cross-backend reasoning catches issues that single-backend scanners miss (e.g., 
 | 6 | Cross-backend interaction analysis | 🚧 planned |
 | 7 | Distribution + polish | 🚧 planned |
 
-DB Sentinel was previously **Supabase Sentinel** (single-backend). The rename happened during Phase 1 of the multi-backend expansion. A backwards-compat shim at `compat/supabase-sentinel/` preserves the old skill name through at least the next minor release — existing users see no regression.
+Database Sentinel was previously **Supabase Sentinel** (single-backend). The rename happened during Phase 1 of the multi-backend expansion. A backwards-compat shim at `compat/supabase-sentinel/` preserves the old skill name through at least the next minor release — existing users see no regression.
 
 ---
 
@@ -47,7 +47,7 @@ DB Sentinel was previously **Supabase Sentinel** (single-backend). The rename ha
 Clone the skill into your project's skills directory, or a central one:
 
 ```bash
-git clone https://github.com/Farenhytee/db-sentinel.git ~/claude-skills/db-sentinel
+git clone https://github.com/Farenhytee/database-sentinel.git ~/claude-skills/database-sentinel
 ```
 
 Then ask Claude:
@@ -56,7 +56,7 @@ Then ask Claude:
 Audit my database
 ```
 
-DB Sentinel will detect which backend(s) your project uses, run the relevant audits, and produce a unified report. If multiple backends are present (Firebase Auth + Postgres data, etc.), the report includes a cross-backend interactions section once Phase 6 lands.
+Database Sentinel will detect which backend(s) your project uses, run the relevant audits, and produce a unified report. If multiple backends are present (Firebase Auth + Postgres data, etc.), the report includes a cross-backend interactions section once Phase 6 lands.
 
 ### Option 2: Single-backend invocation
 
@@ -176,7 +176,7 @@ The MongoBleed network probe (`backends/mongodb/mongobleed-probe.md`) ships a si
 ## File structure
 
 ```
-db-sentinel/
+database-sentinel/
 ├── SKILL.md                                # Dispatcher — detects backends, routes audits (~2K tokens)
 ├── DECISIONS.md                            # Locked architecture decisions (D1-D4 + supersessions)
 ├── core/
@@ -235,7 +235,7 @@ Just ask: "Set up continuous security monitoring for this project."
 
 ## Research backing
 
-DB Sentinel's anti-pattern database is sourced from:
+Database Sentinel's anti-pattern database is sourced from:
 
 ### Supabase / Firebase / vibe-coding ecosystem
 - **CVE-2025-48757** — 170+ Lovable apps exposed, CVSS 9.3 (Matt Palmer, May 2025)
@@ -262,9 +262,9 @@ See `references/vibe-coding-context.md` and `references/cve-feed.md` for the ful
 
 ---
 
-## What DB Sentinel catches that built-in tools miss
+## What Database Sentinel catches that built-in tools miss
 
-| Backend | Built-in tool | What it misses | DB Sentinel covers |
+| Backend | Built-in tool | What it misses | Database Sentinel covers |
 |---------|---------------|----------------|---------------------|
 | Supabase | Splinter (16 lints) | Whether policies actually prevent unauthorized access | Live `tx=rollback` testing of every CRUD path against every table |
 | Supabase | Splinter | Ghost-auth (email-confirmation bypass) | Sign-up probe with `.invalid` TLD |
@@ -279,7 +279,7 @@ See `references/vibe-coding-context.md` and `references/cve-feed.md` for the ful
 
 ## Safety
 
-DB Sentinel is designed to be safe for production use:
+Database Sentinel is designed to be safe for production use:
 
 - **Default read-only.** Introspection queries only read system catalogs (`pg_tables`, `pg_policies`, `getCmdLineOpts`, etc.). No DDL or DML by default.
 - **Write probes are opt-in.** Per-backend strategy:
@@ -302,7 +302,7 @@ Contributions are welcome. The most valuable contributions:
 
 1. **New anti-patterns** — Found a security issue not in our database? Add it to the relevant `backends/<name>/anti-patterns.md` with severity, detection query, fix code, and real-world evidence (CVE / breach / Splinter / CIS).
 2. **Fix template improvements** — Better policy patterns, edge cases, or performance optimizations in `backends/<name>/fix-templates.md`.
-3. **Live testing** — Run DB Sentinel against your own backends and report false positives / negatives. Live testing is what caught three real bugs during Phase 2 (see `backends/mongodb/mongobleed-probe.md` "Empirically verified" annotations).
+3. **Live testing** — Run Database Sentinel against your own backends and report false positives / negatives. Live testing is what caught three real bugs during Phase 2 (see `backends/mongodb/mongobleed-probe.md` "Empirically verified" annotations).
 4. **New backend extensions** — Phases 3–5 are open. Follow the structure of `backends/mongodb/` and `backends/supabase/`. The implementation plan (`sentinel-implementation-plan.md`) has the contract for each.
 5. **Vibe-coding pattern attribution** — When you find a pattern that's plausibly AI-generated by Cursor / Bolt / Lovable / Claude Code, document it. This is the project's wedge.
 
@@ -325,7 +325,7 @@ Contributions are welcome. The most valuable contributions:
 - **Phase 7** — README polish (this), `BACKENDS.md` quick reference, deprecation timeline for the `supabase-sentinel` shim
 
 ### Future
-- **CLI tool** — `npx db-sentinel audit` for non-Claude environments
+- **CLI tool** — `npx database-sentinel audit` for non-Claude environments
 - **MCP server** — programmatic access for CI/CD and dashboards
 - **VS Code extension** — inline security warnings in the editor
 - **Premium dashboard** — historical trending, multi-project views, Slack alerts
@@ -336,7 +336,8 @@ Contributions are welcome. The most valuable contributions:
 
 - **Supabase Sentinel** (v1) — single-backend Supabase auditor. Original release.
 - **Sentinel** (working name during Phase 1 architectural refactor)
-- **DB Sentinel** (v2, current) — multi-backend; explicit database-security framing for skill discovery
+- **DB Sentinel** (v2, transitional working name during multi-backend rollout)
+- **Database Sentinel** (v3, current) — multi-backend; full word "database" for explicit skill-discovery framing and to match the GitHub repo name
 
 The `supabase-sentinel` skill name still works via the compat shim at `compat/supabase-sentinel/`. It forces the audit to Supabase only and produces output indistinguishable from v1. Sunset date: TBD; through at least the next minor release.
 
