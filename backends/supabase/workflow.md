@@ -23,7 +23,7 @@ Extract: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. If fo
 - The service_role key is needed for schema introspection (reading table structures and policy definitions). Used read-only, never stored.
 - Without the service_role key, you can still run dynamic testing (Steps 3-4 only) using the anon key, but cannot inspect policy logic or generate precise fixes.
 
-See `../../core/credentials.md` for the cross-backend rules on safe key handling. The Supabase-specific mapping: anon key = "public-key-in-client" (expected), service_role key = "privileged-key-in-client" (always CRITICAL if found in client bundle).
+See `core/credentials.md` for the cross-backend rules on safe key handling. The Supabase-specific mapping: anon key = "public-key-in-client" (expected), service_role key = "privileged-key-in-client" (always CRITICAL if found in client bundle).
 
 **Simultaneously, scan the codebase for security red flags:**
 
@@ -157,7 +157,7 @@ Read `anti-patterns.md` for the complete 27-pattern database. Analyze every resu
 
 ## Step 3 — Dynamic testing (safe probing)
 
-**Safety guarantee:** `Prefer: tx=rollback` tells PostgREST to evaluate the request fully, return the result, then roll back the transaction. Zero data modified. Safe for production. (Supabase is the only backend with a primitive this clean — see `../../core/workflow.md` §3 for the cross-backend probing contract.)
+**Safety guarantee:** `Prefer: tx=rollback` tells PostgREST to evaluate the request fully, return the result, then roll back the transaction. Zero data modified. Safe for production. (Supabase is the only backend with a primitive this clean — see `core/workflow.md` §3 for the cross-backend probing contract.)
 
 **For each table, run all four CRUD tests with the anon key:**
 
@@ -218,7 +218,7 @@ If JSON with `"paths"` or `"definitions"` → 🟡 Table names and column types 
 
 ## Step 4 — Generate the security report
 
-Use the cross-backend report format defined in `../../core/reporting.md`. The Supabase header looks like:
+Use the cross-backend report format defined in `core/reporting.md`. The Supabase header looks like:
 
 ```
 ╔════════════════════════════════════════════════════════╗
@@ -231,7 +231,7 @@ Use the cross-backend report format defined in `../../core/reporting.md`. The Su
 ╚════════════════════════════════════════════════════════╝
 ```
 
-**Scoring:** Per `../../core/scoring.md`, Supabase weights are CRITICAL = -25, HIGH = -10, MEDIUM = -5, LOW = -2. Floor at 0.
+**Scoring:** Per `core/scoring.md`, Supabase weights are CRITICAL = -25, HIGH = -10, MEDIUM = -5, LOW = -2. Floor at 0.
 Emoji: 80-100 ✅, 60-79 ⚠️, 40-59 🟠, 0-39 🔴.
 
 **For each finding:**
@@ -284,7 +284,7 @@ Read `fix-templates.md` for the complete template library (8 categories, 7 polic
 
 ## Step 6 — GitHub Action (optional)
 
-Read `../../assets/ci/github-action-supabase.yml`. Create `.github/workflows/supabase-sentinel.yml`. User needs to add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` as repository secrets. Action runs on migration changes + weekly, posts PR comments, fails on CRITICAL.
+Read `assets/ci/github-action-supabase.yml`. Create `.github/workflows/supabase-sentinel.yml`. User needs to add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` as repository secrets. Action runs on migration changes + weekly, posts PR comments, fails on CRITICAL.
 
 ---
 
@@ -308,5 +308,5 @@ Recommend these one-time hardening steps. Generate the SQL if the user wants:
 - **`audit-queries.md`** — Full 20-query SQL library. For additional queries beyond those inlined above.
 - **`anti-patterns.md`** — 27 vulnerability patterns (`SB-001..SB-027`) with severity, root cause, detection, Splinter lint IDs, real-world examples. Essential reading at Step 2.
 - **`fix-templates.md`** — SQL fix templates: enable RLS, 7 RLS policy patterns (ownership/team/public-read/role-based/verified/MFA/anonymous-block), storage policies, auth hardening, function fixes, column security, migration template. Essential at Step 5.
-- **`../../references/vibe-coding-context.md`** — CVE-2025-48757 details, security studies, why LLMs generate insecure code. Cross-backend; read when user asks "why."
-- **`../../assets/ci/github-action-supabase.yml`** — CI/CD workflow. Read at Step 6.
+- **`references/vibe-coding-context.md`** — CVE-2025-48757 details, security studies, why LLMs generate insecure code. Cross-backend; read when user asks "why."
+- **`assets/ci/github-action-supabase.yml`** — CI/CD workflow. Read at Step 6.

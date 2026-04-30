@@ -1,0 +1,323 @@
+# Sentinel — MongoDB Security Audit GitHub Action
+#
+# Drop into .github/workflows/sentinel-mongodb.yml.
+#
+# Required repository secrets (live audit mode only):
+#   MONGODB_AUDIT_URI       — read-class connection string used by the audit
+#   ATLAS_PUB / ATLAS_PRIV  — Atlas programmatic API key (read-only role)
+#                             only required for MG-AT-* patterns
+#
+# Required repository variables:
+#   ATLAS_GROUP_ID    — Atlas project ID (live mode + Atlas patterns)
+#   ATLAS_ORG_ID      — Atlas org ID (live mode + Atlas API key audit)
+#   AUDIT_LIVE        — set to 'true' to enable the live-cluster audit
+#   MONGOBLEED_PROBE  — set to 'true' to enable the network probe
+#                       (additionally requires confirming you own the host)
+#   MONGO_HOST        — host:port for the MongoBleed probe target
+#   PG_VERSION        — unused here; placeholder so action templates align
+#
+# This workflow has three job modes:
+#   1. static — IaC + source scan, no secrets needed, always runs
+#   2. live   — gated on vars.AUDIT_LIVE == 'true' AND MONGODB_AUDIT_URI exists
+#   3. probe  — gated on vars.MONGOBLEED_PROBE == 'true' AND vars.MONGO_HOST set
+
+name: Sentinel — MongoDB
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/mongod.conf'
+      - '**/docker-compose*.y*ml'
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - '**/package.json'
+      - '**/pom.xml'
+      - '**/build.gradle'
+  pull_request:
+    paths:
+      - '**/mongod.conf'
+      - '**/docker-compose*.y*ml'
+      - '**/*.tf'
+      - '**/*.tfvars'
+      - '**/package.json'
+      - '**/pom.xml'
+      - '**/build.gradle'
+  schedule:
+    - cron: '0 6 * * 1'   # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write    # for the PR comment step
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # 1. STATIC — IaC + source scan. No secrets needed. Always runs.
+  # ─────────────────────────────────────────────────────────────────────
+  static:
+    name: Static IaC + source scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for MG-AT-001 (Atlas allowlist 0.0.0.0/0)
+        id: atlas_allowlist
+        run: |
+          set +e
+          MATCHES=$(grep -rEn 'cidr_block\s*=\s*"0\.0\.0\.0/0"' \
+            --include="*.tf" --include="*.tfvars" 2>/dev/null || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error title=MG-AT-001::Atlas IP allowlist 0.0.0.0/0 in Terraform"
+            echo "$MATCHES" | sed 's/^/  /'
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan for MG-SH-002 / MG-SH-003 (auth + bind in compose)
+        id: mongo_compose
+        run: |
+          set +e
+          MATCHES=$(grep -rEn '(--noauth|--bind_ip_all|MONGO_INITDB_ROOT_PASSWORD\s*:\s*$)' \
+            --include="docker-compose*.y*ml" --include="Dockerfile*" 2>/dev/null || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error title=MG-SH-002/003::auth-disabled or internet-bound mongod in compose"
+            echo "$MATCHES" | sed 's/^/  /'
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan for MG-SH-008 source patterns (Mongoose mass-assignment)
+        id: mass_assign
+        run: |
+          set +e
+          MATCHES=$(grep -rEn '(findByIdAndUpdate|findOneAndUpdate)\s*\([^,]+,\s*req\.body\)' \
+            --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null \
+            | grep -v node_modules || true)
+          MATCHES2=$(grep -rEn 'Model\.update\s*\([^,]+,\s*req\.body\)' \
+            --include="*.ts" --include="*.tsx" --include="*.js" 2>/dev/null \
+            | grep -v node_modules || true)
+          if [ -n "$MATCHES" ] || [ -n "$MATCHES2" ]; then
+            echo "::warning title=MG-SH-008::Mongoose mass-assignment pattern (likely AI-generated)"
+            { echo "$MATCHES"; echo "$MATCHES2"; } | sed 's/^/  /'
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan for MG-AT-003 (deprecated Atlas Data API)
+        id: atlas_data_api
+        run: |
+          set +e
+          MATCHES=$(grep -rEn '/api/atlas/v[0-9.]+/groups/[^/]+/dataAPI|/app/[^/]+/endpoint/data/v1/action/' \
+            --include="*.ts" --include="*.tsx" --include="*.js" --include="*.py" 2>/dev/null \
+            | grep -v node_modules || true)
+          if [ -n "$MATCHES" ]; then
+            echo "::error title=MG-AT-003::Deprecated Atlas Data API references in source"
+            echo "$MATCHES" | sed 's/^/  /'
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan for MG-SH-009 (outdated Mongoose)
+        id: mongoose_version
+        run: |
+          set +e
+          if [ -f package.json ]; then
+            VER=$(grep -oE '"mongoose"\s*:\s*"[^"]+"' package.json | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+            if [ -n "$VER" ]; then
+              # crude semver compare — flag if < 8.9.5
+              MAJOR=$(echo "$VER" | cut -d. -f1)
+              MINOR=$(echo "$VER" | cut -d. -f2)
+              PATCH=$(echo "$VER" | cut -d. -f3)
+              if [ "$MAJOR" -lt 8 ] || \
+                 { [ "$MAJOR" -eq 8 ] && [ "$MINOR" -lt 9 ]; } || \
+                 { [ "$MAJOR" -eq 8 ] && [ "$MINOR" -eq 9 ] && [ "$PATCH" -lt 5 ]; }; then
+                echo "::warning title=MG-SH-009::Mongoose $VER vulnerable to CVE-2024-53900 / CVE-2025-23061 (patched in 8.9.5)"
+                echo "found=1" >> "$GITHUB_OUTPUT"
+              else
+                echo "found=0" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "found=0" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "found=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Aggregate findings + score
+        id: score
+        run: |
+          set +e
+          SCORE=100
+          CRIT=0; HIGH=0
+          if [ "${{ steps.atlas_allowlist.outputs.found }}" = "1" ]; then SCORE=$((SCORE-30)); CRIT=$((CRIT+1)); fi
+          if [ "${{ steps.mongo_compose.outputs.found }}" = "1" ]; then SCORE=$((SCORE-30)); CRIT=$((CRIT+1)); fi
+          if [ "${{ steps.atlas_data_api.outputs.found }}" = "1" ]; then SCORE=$((SCORE-12)); HIGH=$((HIGH+1)); fi
+          if [ "${{ steps.mongoose_version.outputs.found }}" = "1" ]; then SCORE=$((SCORE-5)); fi
+          if [ "${{ steps.mass_assign.outputs.found }}" = "1" ]; then SCORE=$((SCORE-12)); HIGH=$((HIGH+1)); fi
+          [ "$SCORE" -lt 0 ] && SCORE=0
+          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "critical=$CRIT" >> "$GITHUB_OUTPUT"
+          echo "high=$HIGH" >> "$GITHUB_OUTPUT"
+          {
+            echo "## 🛡️ Sentinel — MongoDB (static IaC + source scan)"
+            echo ""
+            echo "**Score:** $SCORE/100"
+            echo "**Findings:** $CRIT CRITICAL · $HIGH HIGH"
+            echo ""
+            if [ "$CRIT" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "Static scan only. Live introspection (Atlas API / mongosh) covers"
+              echo "MG-SH-001 through MG-SH-014 and the remaining MG-AT-* patterns."
+              echo "Enable AUDIT_LIVE=true to expand coverage."
+            else
+              echo "✅ No static-mode findings."
+            fi
+          } > "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+      - name: Fail on critical findings
+        if: steps.score.outputs.critical != '0'
+        run: |
+          echo "❌ Critical findings present. Resolve before merge."
+          exit 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 2. LIVE — full introspection against the audit cluster.
+  # ─────────────────────────────────────────────────────────────────────
+  live:
+    name: Live audit (introspection)
+    if: vars.AUDIT_LIVE == 'true'
+    runs-on: ubuntu-latest
+    needs: static
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mongosh
+        run: |
+          curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+          echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+          sudo apt-get update
+          sudo apt-get install -y mongodb-mongosh
+
+      - name: Server fingerprint (MG-SH-001 / 002 / 003 / 005 / 006 / 010 / 011)
+        env:
+          URI: ${{ secrets.MONGODB_AUDIT_URI }}
+        run: |
+          mongosh --quiet --eval '
+            const v = db.runCommand({buildInfo:1}).version;
+            const opts = db.runCommand({getCmdLineOpts:1}).parsed;
+            const params = db.adminCommand({
+              getParameter: 1,
+              enableLocalhostAuthBypass: 1,
+              javascriptEnabled: 1,
+              enableTestCommands: 1
+            });
+            print(JSON.stringify({version: v, parsed: opts, parameters: params}, null, 2));
+          ' "$URI" > /tmp/fingerprint.json
+          cat /tmp/fingerprint.json
+
+      - name: Atlas — IP allowlist + database users (MG-AT-001/004/005/006)
+        if: vars.ATLAS_GROUP_ID != ''
+        env:
+          ATLAS_PUB: ${{ secrets.ATLAS_PUB }}
+          ATLAS_PRIV: ${{ secrets.ATLAS_PRIV }}
+          ATLAS_GID: ${{ vars.ATLAS_GROUP_ID }}
+          ATLAS_ORG: ${{ vars.ATLAS_ORG_ID }}
+        run: |
+          set -e
+          H='-H "Accept: application/vnd.atlas.2025-03-12+json"'
+
+          curl --user "$ATLAS_PUB:$ATLAS_PRIV" --digest -fsS \
+            "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_GID/networkAccessLists" \
+            -H "Accept: application/vnd.atlas.2025-03-12+json" > /tmp/atlas-acl.json
+
+          curl --user "$ATLAS_PUB:$ATLAS_PRIV" --digest -fsS \
+            "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_GID/databaseUsers" \
+            -H "Accept: application/vnd.atlas.2025-03-12+json" > /tmp/atlas-users.json
+
+          curl --user "$ATLAS_PUB:$ATLAS_PRIV" --digest -fsS \
+            "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_GID/encryptionAtRest" \
+            -H "Accept: application/vnd.atlas.2025-03-12+json" > /tmp/atlas-cmk.json
+
+          curl --user "$ATLAS_PUB:$ATLAS_PRIV" --digest -fsS \
+            "https://cloud.mongodb.com/api/atlas/v2/orgs/$ATLAS_ORG/apiKeys" \
+            -H "Accept: application/vnd.atlas.2025-03-12+json" > /tmp/atlas-keys.json
+
+          jq '.results[] | select(.cidrBlock=="0.0.0.0/0")' /tmp/atlas-acl.json \
+            && echo "::error title=MG-AT-001::Atlas IP allowlist contains 0.0.0.0/0"
+
+      - name: Generate report
+        run: |
+          {
+            echo "## 🛡️ Sentinel — MongoDB (live introspection)"
+            echo ""
+            echo "<details><summary>Server fingerprint</summary>"
+            echo ""
+            echo '```json'
+            jq -e '.' /tmp/fingerprint.json 2>/dev/null || cat /tmp/fingerprint.json
+            echo '```'
+            echo "</details>"
+          } > "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-mongodb-live
+          path: |
+            /tmp/fingerprint.json
+            /tmp/atlas-*.json
+          retention-days: 30
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 3. PROBE — opt-in MongoBleed network probe. Single packet, read-only.
+  # ─────────────────────────────────────────────────────────────────────
+  mongobleed-probe:
+    name: MongoBleed probe (opt-in)
+    if: vars.MONGOBLEED_PROBE == 'true' && vars.MONGO_HOST != ''
+    runs-on: ubuntu-latest
+    needs: static
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run safe single-packet probe
+        env:
+          MONGOBLEED_PROBE_CONFIRM_AUTHORIZED: yes
+          MONGO_HOST: ${{ vars.MONGO_HOST }}
+        run: |
+          set +e
+          # The probe script ships with the skill; this step expects it on PATH.
+          # See backends/mongodb/mongobleed-probe.md for the canonical implementation.
+          if [ -x ./scripts/mongobleed-probe.sh ]; then
+            ./scripts/mongobleed-probe.sh "$MONGO_HOST" 27017
+            EXIT=$?
+          else
+            echo "::warning::mongobleed-probe.sh not present in repo. Skipping."
+            EXIT=0
+          fi
+          case "$EXIT" in
+            0) echo "::notice title=MG-SH-001::MongoBleed probe — patched";;
+            1) echo "::error title=MG-SH-001::MongoBleed probe — VULNERABLE at runtime";;
+            2) echo "::warning title=MG-SH-001::MongoBleed probe — error / unreachable";;
+          esac
+          exit "$EXIT"

@@ -94,8 +94,8 @@ For each detected backend, load its workflow file and run all seven steps. Per-b
 | Backend | Load this file |
 |---------|----------------|
 | Supabase | `backends/supabase/workflow.md` |
+| MongoDB | `backends/mongodb/workflow.md` |
 | Firebase | `backends/firebase/workflow.md` *(Phase 3 — not yet implemented)* |
-| MongoDB | `backends/mongodb/workflow.md` *(Phase 2 — not yet implemented)* |
 | Postgres self-hosted | `backends/postgres-selfhosted/workflow.md` *(Phase 4)* |
 | MySQL self-hosted | `backends/mysql-selfhosted/workflow.md` *(Phase 5)* |
 
@@ -154,22 +154,30 @@ sentinel/
 │   ├── reporting.md              ← unified report format (text + JSON)
 │   └── credentials.md            ← public-vs-privileged key handling
 ├── backends/
-│   └── supabase/                 ← Phase 1 — implemented
+│   ├── supabase/                 ← Phase 1 — implemented
+│   │   ├── workflow.md
+│   │   ├── anti-patterns.md      ← 27 patterns SB-001..SB-027
+│   │   ├── audit-queries.md      ← 20 introspection queries
+│   │   └── fix-templates.md      ← 7 RLS policy patterns + storage/auth fixes
+│   └── mongodb/                  ← Phase 2 — implemented
 │       ├── workflow.md
-│       ├── anti-patterns.md      ← 27 patterns SB-001..SB-027
-│       ├── audit-queries.md      ← 20 introspection queries
-│       └── fix-templates.md      ← 7 RLS policy patterns + storage/auth fixes
+│       ├── anti-patterns.md      ← 20 patterns MG-SH-001..014, MG-AT-001..006
+│       ├── introspection.md      ← mongosh + Atlas Admin API + IaC scan
+│       ├── mongobleed-probe.md   ← safe CVE-2025-14847 single-packet detector
+│       └── fix-templates.md      ← version matrix, mongod.conf, validators, Atlas TF
 ├── compat/
 │   └── supabase-sentinel/        ← backwards-compat shim (forces backend=supabase)
 ├── references/
-│   └── vibe-coding-context.md    ← CVE-2025-48757, breach studies, vibe-coding patterns
+│   ├── vibe-coding-context.md    ← CVE-2025-48757, breach studies, vibe-coding patterns
+│   └── cve-feed.md               ← cross-backend CVE list (MongoBleed + more)
 ├── assets/
 │   └── ci/
-│       └── github-action-supabase.yml
+│       ├── github-action-supabase.yml
+│       └── github-action-mongodb.yml
 └── README.md
 ```
 
-**Phase status:** Phase 1 (architectural refactor + Supabase backend) is complete. Phases 2–7 add MongoDB, Firebase, Postgres self-hosted, MySQL self-hosted, cross-backend integration, and distribution. See `sentinel-implementation-plan.md` for the remaining roadmap.
+**Phase status:** Phases 1 (architectural refactor + Supabase) and 2 (MongoDB extension, MongoBleed-first) are complete. Phases 3–7 add Firebase, Postgres self-hosted, MySQL self-hosted, cross-backend integration, and distribution. See `sentinel-implementation-plan.md` for the remaining roadmap.
 
 ---
 
