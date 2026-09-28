@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.get_user_emails}
+  - {pattern_id: MUTABLE_SEARCH_PATH, object: public.get_user_emails}
+  - {pattern_id: EXPOSED_RPC_NO_AUTH, object: public.get_user_emails}

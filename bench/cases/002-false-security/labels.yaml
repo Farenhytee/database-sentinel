@@ -1,0 +1,2 @@
+findings:
+  - {pattern_id: POLICIES_BUT_NO_RLS, object: public.orders}

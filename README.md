@@ -345,7 +345,7 @@ The `supabase-sentinel` skill name still works via the compat shim at `compat/su
 
 ## License
 
-MIT — use it however you want, commercially or otherwise.
+MIT — use it however you want, commercially or otherwise. Exception: `agent/`, `mcp_server/` and `kb/` are AGPL-3.0 (see the `LICENSE` in each).
 
 ---
 

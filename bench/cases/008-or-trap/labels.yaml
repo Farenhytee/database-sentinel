@@ -1,0 +1,5 @@
+findings:
+  - {pattern_id: MULTIPLE_PERMISSIVE, object: public.messages}
+  - {pattern_id: USING_TRUE, object: public.messages}
+  - {pattern_id: SENSITIVE_COLUMNS, object: public.integrations}
+  - {pattern_id: JWT_SECRET_EXPOSED, object: .env.local}

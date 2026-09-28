@@ -57,7 +57,7 @@ docker exec -it sentinel-test-mongo mongosh \
 
 ```bash
 # From the Sentinel skill directory:
-cd "/Library/Personal/supabase skill"
+cd /Library/Personal/database-sentinel
 
 # Connect with no credentials — exactly the attacker's view of MG-SH-002
 export MONGODB_URI="mongodb://127.0.0.1:27017/testapp"

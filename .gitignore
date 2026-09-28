@@ -1,2 +1,9 @@
 compass_artifact_*.md
 sentinel-implementation-plan.md
+.venv/
+.env
+__pycache__/
+*.egg-info/
+.pytest_cache/
+supabase/.temp/
+supabase/.branches/

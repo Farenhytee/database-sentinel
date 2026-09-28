@@ -1,0 +1,19 @@
+# Benchmark
+
+`cases/NNN-slug/`: `schema.sql` (applied to a fresh local Supabase), `labels.yaml`, optional `frontend/` (fake keys only).
+`splits.yaml`: dev/test assignment. **Test split is frozen: never tune on it.**
+
+## Labeling rules
+Labels are exhaustive for in-scope patterns (`agent.catalog.in_scope()`). Object: `schema.name` lowercase (policies → their table, functions without args), `storage.<bucket>`, or file path relative to `frontend/`.
+
+Objective (label whenever present): RLS_DISABLED, POLICIES_BUT_NO_RLS, RLS_NO_POLICIES, USER_METADATA_IN_POLICY, POLICY_NO_ROLE_SCOPE, MULTIPLE_PERMISSIVE, MUTABLE_SEARCH_PATH (SECURITY DEFINER without search_path), VIEW_NO_SECURITY_INVOKER, MATVIEW_EXPOSED, SERVICE_ROLE_EXPOSED, JWT_SECRET_EXPOSED.
+
+Judgment (label only when exploitable):
+- USING_TRUE: `true` on a write, or on SELECT of data not meant to be public. Public catalogs (`products`, published posts) are not findings.
+- SECURITY_DEFINER_EXPOSED: callable via `/rpc` by anon/authenticated. Trigger functions, revoked functions and non-exposed schemas are not.
+- EXPOSED_RPC_NO_AUTH: anon-executable function touching data with no auth check. Pure helpers (e.g. `slugify`) and functions checking `auth.uid()` are not.
+- PUBLIC_BUCKET: public bucket holding private content (invoices, documents). Avatars/public assets are not.
+- SENSITIVE_COLUMNS: secret/credential/payment column selectable by anon or authenticated (one per table).
+- MASS_ASSIGNMENT: authenticated can UPDATE a privilege/billing column (any name) on rows it can update.
+
+Not evaluated: manual-check patterns (auth config), RLS_PERFORMANCE, UPDATE_NO_WITHCHECK (Postgres reuses USING as WITH CHECK).

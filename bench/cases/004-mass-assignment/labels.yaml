@@ -1,0 +1,2 @@
+findings:
+  - {pattern_id: MASS_ASSIGNMENT, object: public.profiles}

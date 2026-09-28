@@ -117,9 +117,9 @@ SELECT
   qual AS using_expr,
   with_check,
   CASE
-    WHEN qual = 'true' AND cmd = 'r' THEN '🟠 HIGH: All rows readable by ' || roles::text
-    WHEN qual = 'true' AND cmd IN ('a','w','d','*') THEN '🔴 CRITICAL: Unrestricted write by ' || roles::text
-    WHEN with_check = 'true' AND cmd IN ('a','w') THEN '🟠 HIGH: Any data can be inserted/updated by ' || roles::text
+    WHEN qual = 'true' AND cmd = 'SELECT' THEN '🟠 HIGH: All rows readable by ' || roles::text
+    WHEN qual = 'true' AND cmd IN ('UPDATE','DELETE','ALL') THEN '🔴 CRITICAL: Unrestricted write by ' || roles::text
+    WHEN with_check = 'true' AND cmd IN ('INSERT','UPDATE','ALL') THEN '🟠 HIGH: Any data can be inserted/updated by ' || roles::text
     ELSE '⚠️ Check manually'
   END AS risk
 FROM pg_policies
@@ -162,7 +162,7 @@ SELECT
   '🟠 HIGH: UPDATE policy without WITH CHECK — users may reassign row ownership' AS risk
 FROM pg_policies
 WHERE schemaname = 'public'
-  AND cmd = 'w'
+  AND cmd = 'UPDATE'
   AND (with_check IS NULL OR with_check = '');
 ```
 
@@ -252,7 +252,7 @@ FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE p.prosecdef = true
   AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'extensions', 'auth', 'storage', 'pgsodium', 'vault')
-  AND (p.proconfig IS NULL OR NOT p.proconfig::text[] @> ARRAY['search_path=public']);
+  AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}')) c WHERE c LIKE 'search_path=%');
 ```
 
 ### Q14: Views without security_invoker (bypass RLS)
@@ -267,7 +267,7 @@ SELECT
   CASE
     WHEN EXISTS (
       SELECT 1 FROM pg_options_to_table(c.reloptions)
-      WHERE option_name = 'security_invoker' AND option_value = 'true'
+      WHERE option_name = 'security_invoker' AND option_value IN ('true', 'on', '1')
     ) THEN '✅ security_invoker enabled'
     ELSE '🟠 HIGH: View bypasses RLS (runs as ' || pg_get_userbyid(c.relowner) || ')'
   END AS status
@@ -298,13 +298,15 @@ Lists all functions that anonymous (unauthenticated) users can execute via the A
 
 ```sql
 SELECT
-  routine_schema,
-  routine_name,
-  '⚠️ INFO: Callable by anon role via /rest/v1/rpc/' || routine_name AS note
-FROM information_schema.routine_privileges
-WHERE grantee = 'anon'
-  AND privilege_type = 'EXECUTE'
-  AND routine_schema NOT IN ('pg_catalog', 'information_schema', 'extensions', 'auth', 'storage');
+  n.nspname AS routine_schema,
+  p.proname AS routine_name,
+  p.prosecdef AS security_definer,
+  '⚠️ INFO: Callable by anon role via /rest/v1/rpc/' || p.proname AS note
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE n.nspname = 'public'
+  AND p.prokind = 'f'
+  AND has_function_privilege('anon', p.oid, 'EXECUTE');
 ```
 
 ---
@@ -354,14 +356,20 @@ Columns with names suggesting sensitive data that are accessible through the pub
 
 ```sql
 SELECT
-  table_schema,
-  table_name,
-  column_name,
-  data_type,
+  n.nspname AS table_schema,
+  c.relname AS table_name,
+  a.attname AS column_name,
+  format_type(a.atttypid, a.atttypmod) AS data_type,
   '⚠️ Sensitive column exposed via API' AS warning
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND lower(column_name) IN (
+FROM pg_attribute a
+JOIN pg_class c ON a.attrelid = c.oid
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'public'
+  AND c.relkind IN ('r', 'v', 'm', 'p')
+  AND a.attnum > 0 AND NOT a.attisdropped
+  AND (has_column_privilege('anon', c.oid, a.attnum, 'SELECT')
+       OR has_column_privilege('authenticated', c.oid, a.attnum, 'SELECT'))
+  AND lower(a.attname) IN (
     'password', 'password_hash', 'hashed_password',
     'secret', 'secret_key', 'api_key', 'api_secret',
     'token', 'access_token', 'refresh_token', 'auth_token',

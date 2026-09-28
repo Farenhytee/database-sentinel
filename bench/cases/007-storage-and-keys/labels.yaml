@@ -1,0 +1,3 @@
+findings:
+  - {pattern_id: PUBLIC_BUCKET, object: storage.invoices}
+  - {pattern_id: SERVICE_ROLE_EXPOSED, object: src/lib/supabase.ts}

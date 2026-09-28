@@ -1,0 +1,3 @@
+findings:
+  - {pattern_id: VIEW_NO_SECURITY_INVOKER, object: public.profile_directory}
+  - {pattern_id: MATVIEW_EXPOSED, object: public.leaderboard}

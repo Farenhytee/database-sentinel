@@ -1,0 +1,3 @@
+findings:
+  - {pattern_id: USER_METADATA_IN_POLICY, object: public.posts}
+  - {pattern_id: POLICY_NO_ROLE_SCOPE, object: public.posts}
