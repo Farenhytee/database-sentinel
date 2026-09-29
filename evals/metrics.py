@@ -1,6 +1,6 @@
 from collections import Counter
 
-from agent.catalog import severity
+from database_sentinel.agent.catalog import severity
 
 
 def prf(tp: int, fp: int, fn: int) -> tuple[float, float, float]:

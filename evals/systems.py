@@ -1,11 +1,11 @@
 """Systems under test. Each takes (target, introspection) and returns findings as dicts."""
 import json
 
-from agent.introspect import introspect
-from agent.llm import get_model
-from agent.models import Findings
-from agent.prompts import analyst_prompt
-from agent.rules import r0
+from database_sentinel.agent.introspect import introspect
+from database_sentinel.agent.llm import get_model
+from database_sentinel.agent.models import Findings
+from database_sentinel.agent.prompts import analyst_prompt
+from database_sentinel.agent.rules import r0
 
 __all__ = ["SYSTEMS", "introspect"]
 
@@ -22,7 +22,7 @@ def run_b0(t, intro):
 
 
 def run_a(t, intro):
-    from agent.graph import build_graph
+    from database_sentinel.agent.graph import build_graph
     state = build_graph().invoke({"target": t})
     return state["findings"]
 

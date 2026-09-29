@@ -1,7 +1,7 @@
 """Shared introspection dump used by R0, B0 and the agent."""
-from mcp_server import tools
-from mcp_server.queries import audit_queries
-from mcp_server.target import Target
+from database_sentinel.mcp_server import tools
+from database_sentinel.mcp_server.queries import audit_queries
+from database_sentinel.mcp_server.target import Target
 
 
 def introspect(t: Target) -> dict:

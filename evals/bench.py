@@ -7,7 +7,8 @@ from urllib.parse import urlparse
 import psycopg
 import yaml
 
-from mcp_server.target import Target
+from database_sentinel.mcp_server.setup import role_sql
+from database_sentinel.mcp_server.target import Target
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCH = ROOT / "bench"
@@ -37,7 +38,7 @@ def prepare(cid: str, env: dict) -> None:
         raise RuntimeError(f"refusing to reset non-local DB {urlparse(env['DB_URL']).hostname}")
     subprocess.run(["supabase", "db", "reset"], cwd=ROOT, capture_output=True, check=True)
     with psycopg.connect(env["DB_URL"], autocommit=True) as conn:
-        conn.execute((BENCH / "setup" / "auditor_role.sql").read_text())
+        conn.execute(role_sql().replace("CHANGE_ME_TO_A_STRONG_PASSWORD", AUDITOR[1]))
         conn.execute((case_dir(cid) / "schema.sql").read_text())
         conn.execute("notify pgrst, 'reload schema'")
 

@@ -73,6 +73,35 @@ The dispatcher narrows the scope.
 
 Copy the contents of `SKILL.md` plus the relevant `backends/<name>/workflow.md` into your system prompt. Walk through the 7 steps with your credentials.
 
+### Option 4: MCP server (Supabase; any MCP client, your own LLM)
+
+Read-only tools (`run_audit_query`, `get_schema`, `probe_as_anon`, `scan_repo`), an `audit` prompt and the catalog as resources. No write, drop or delete tools exist.
+
+1. Create the read-only role: print the SQL, set a password, run it in the Supabase SQL editor. The role can't read your rows.
+   ```bash
+   uvx --from git+https://github.com/Farenhytee/database-sentinel sentinel-mcp --role-sql
+   ```
+2. Add the server to your client (Claude Code shown; any client that runs a stdio command works):
+   ```bash
+   claude mcp add sentinel \
+     -e SENTINEL_DSN="postgresql://sentinel_auditor:<password>@<db-host>:5432/postgres" \
+     -e SENTINEL_REST_URL="https://<ref>.supabase.co" -e SENTINEL_ANON_KEY="<anon key>" \
+     -e SENTINEL_REPO="/path/to/your/app" \
+     -- uvx --from git+https://github.com/Farenhytee/database-sentinel sentinel-mcp
+   ```
+3. Run the `audit` prompt, or ask "audit my Supabase project".
+
+No `uv`? `pipx install git+https://github.com/Farenhytee/database-sentinel` gives you the same `sentinel-mcp` command.
+
+### Option 5: Lite agent (CLI, bring your own model)
+
+```bash
+pipx install "database-sentinel[agent] @ git+https://github.com/Farenhytee/database-sentinel"
+export SENTINEL_BASE_URL=http://localhost:11434/v1 SENTINEL_MODEL=<ollama model>  # or any OpenAI-compatible API + SENTINEL_API_KEY
+sentinel-audit --dsn "postgresql://sentinel_auditor:<password>@<db-host>:5432/postgres" \
+  --rest-url https://<ref>.supabase.co --anon-key <anon key> --repo /path/to/your/app
+```
+
 ---
 
 ## What it catches
@@ -345,7 +374,7 @@ The `supabase-sentinel` skill name still works via the compat shim at `compat/su
 
 ## License
 
-MIT — use it however you want, commercially or otherwise. Exception: `agent/`, `mcp_server/` and `kb/` are AGPL-3.0 (see the `LICENSE` in each).
+MIT — use it however you want, commercially or otherwise. Exception: `database_sentinel/agent/`, `database_sentinel/mcp_server/` and `database_sentinel/kb/` are AGPL-3.0 (see the `LICENSE` in each).
 
 ---
 

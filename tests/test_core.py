@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from agent.catalog import MANUAL, NOT_EVALUATED, in_scope, patterns
-from agent.rules import r0
-from agent.scoring import score
+from database_sentinel.agent.catalog import MANUAL, NOT_EVALUATED, in_scope, patterns
+from database_sentinel.agent.rules import r0
+from database_sentinel.agent.scoring import score
 from evals.matcher import match, norm
 from evals.metrics import prf
-from mcp_server.queries import audit_queries
-from mcp_server.target import Target
-from mcp_server.tools import scan_repo
+from database_sentinel.mcp_server.queries import audit_queries
+from database_sentinel.mcp_server.target import Target
+from database_sentinel.mcp_server.tools import scan_repo
 
 FIX = Path(__file__).parent / "fixtures" / "repo"
 
@@ -56,13 +56,13 @@ def test_r0_on_canned_rows():
 
 
 def test_allowlist_is_read_only():
-    from mcp_server.queries import is_read_only
+    from database_sentinel.mcp_server.queries import is_read_only
     assert all(is_read_only(sql) for sql in audit_queries().values())
     for bad in ["DROP SCHEMA public CASCADE", "select 1; drop table x", "delete from t", "SELECT 1 FROM t; TRUNCATE t"]:
         assert not is_read_only(bad)
 
 
 def test_mcp_exposes_no_write_tools():
-    from mcp_server import tools
+    from database_sentinel.mcp_server import tools
     public = {n for n in dir(tools) if not n.startswith("_") and callable(getattr(tools, n)) and getattr(tools, n).__module__ == tools.__name__}
     assert public == {"run_audit_query", "get_schema", "probe_as_anon", "scan_repo"}

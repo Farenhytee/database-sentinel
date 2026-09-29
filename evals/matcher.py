@@ -1,5 +1,5 @@
 """Set-match findings to labels on (pattern_id, normalized object)."""
-from agent.catalog import in_scope
+from database_sentinel.agent.catalog import in_scope
 
 
 def norm(obj: str) -> str:

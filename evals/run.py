@@ -51,7 +51,7 @@ def main() -> None:
 
 
 def _report(split, systems, per, lat, clean):
-    from agent.llm import model_id
+    from database_sentinel.agent.llm import model_id
     sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
     print(f"\n{'system':8}{'P':>7}{'R':>7}{'F1':>7}{'TP':>5}{'FP':>5}{'FN':>5}{'cleanFP':>9}")

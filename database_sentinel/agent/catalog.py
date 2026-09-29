@@ -2,7 +2,7 @@
 import re
 from functools import cache
 
-from mcp_server.paths import SUPABASE
+from database_sentinel.mcp_server.paths import SUPABASE
 
 _HEAD = re.compile(r"^(?:\S+\s+)?(CRITICAL|HIGH|MEDIUM|LOW|INFO): (.+)$")
 _ID = re.compile(r"\*\*ID:\*\* `(\w+)`")

@@ -2,7 +2,7 @@
 import re
 from functools import cache
 
-from mcp_server.paths import CATALOG
+from database_sentinel.mcp_server.paths import CATALOG
 
 from .catalog import severity
 

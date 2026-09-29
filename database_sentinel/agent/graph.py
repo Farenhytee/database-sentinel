@@ -6,9 +6,9 @@ from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import create_react_agent
 
-from mcp_server import tools
-from mcp_server.db import query
-from mcp_server.target import Target
+from database_sentinel.mcp_server import tools
+from database_sentinel.mcp_server.db import query
+from database_sentinel.mcp_server.target import Target
 
 from .catalog import MANUAL, patterns, severity
 from .introspect import introspect

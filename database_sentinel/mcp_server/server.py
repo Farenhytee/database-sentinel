@@ -1,10 +1,16 @@
-"""MCP server over the plain tool functions. Target comes from SENTINEL_* env vars."""
+"""MCP server over the plain tool functions. Target comes from SENTINEL_* env vars.
+
+`sentinel-mcp` runs it over stdio; `sentinel-mcp --role-sql` prints the read-only role SQL.
+"""
+import sys
+
 from mcp.server.mcpserver import MCPServer
 
-from agent.prompts import client_prompt
+from database_sentinel.agent.prompts import client_prompt
 
 from . import tools
 from .paths import SUPABASE
+from .setup import role_sql
 from .target import Target
 
 mcp = MCPServer("sentinel-mcp", instructions="Read-only Supabase security audit tools.")
@@ -51,5 +57,18 @@ def fix_templates() -> str:
     return (SUPABASE / "fix-templates.md").read_text()
 
 
-if __name__ == "__main__":
+@mcp.resource("sentinel://setup/auditor-role", name="auditor-role", mime_type="text/x-sql",
+              description="SQL creating the read-only sentinel_auditor role. The user runs it, not the agent.")
+def auditor_role() -> str:
+    return role_sql()
+
+
+def main() -> None:
+    if "--role-sql" in sys.argv:
+        print(role_sql())
+        return
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
