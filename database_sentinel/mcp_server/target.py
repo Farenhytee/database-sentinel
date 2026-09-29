@@ -11,6 +11,9 @@ class Target:
 
     @classmethod
     def from_env(cls) -> "Target":
+        if not os.environ.get("SENTINEL_DSN"):
+            raise ValueError("SENTINEL_DSN is not set. Create the read-only login and set its connection string: "
+                             "https://github.com/Farenhytee/database-sentinel/blob/main/docs/mcp.md")
         return cls(
             dsn=os.environ["SENTINEL_DSN"],
             rest_url=os.environ.get("SENTINEL_REST_URL", ""),

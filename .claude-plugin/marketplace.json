@@ -1,0 +1,12 @@
+{
+  "name": "database-sentinel",
+  "description": "Database Sentinel: database security audits for Claude Code.",
+  "owner": { "name": "Paarth Jha", "url": "https://github.com/Farenhytee" },
+  "plugins": [
+    {
+      "name": "database-sentinel",
+      "source": "./",
+      "description": "Audit skill (Supabase, MongoDB) + read-only Supabase MCP tools."
+    }
+  ]
+}

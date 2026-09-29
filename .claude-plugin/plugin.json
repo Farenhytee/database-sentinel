@@ -1,0 +1,50 @@
+{
+  "name": "database-sentinel",
+  "displayName": "Database Sentinel",
+  "version": "0.1.0",
+  "description": "Security audits for Supabase and MongoDB: the audit skill plus read-only Supabase MCP tools.",
+  "author": { "name": "Paarth Jha", "url": "https://github.com/Farenhytee" },
+  "homepage": "https://github.com/Farenhytee/database-sentinel",
+  "repository": "https://github.com/Farenhytee/database-sentinel",
+  "license": "MIT",
+  "keywords": ["security", "supabase", "rls", "mongodb", "audit"],
+  "mcpServers": {
+    "sentinel": {
+      "command": "uvx",
+      "args": ["--from", "${CLAUDE_PLUGIN_ROOT}", "sentinel-mcp"],
+      "env": {
+        "SENTINEL_DSN": "${user_config.supabase_dsn}",
+        "SENTINEL_REST_URL": "${user_config.supabase_url}",
+        "SENTINEL_ANON_KEY": "${user_config.supabase_anon_key}",
+        "SENTINEL_REPO": "${user_config.app_repo}"
+      }
+    }
+  },
+  "userConfig": {
+    "supabase_dsn": {
+      "type": "string",
+      "title": "Read-only connection string",
+      "description": "postgresql://sentinel_auditor:<password>@db.<ref>.supabase.co:5432/postgres (Supabase only; create the role first: docs/mcp.md step 1)",
+      "sensitive": true,
+      "default": ""
+    },
+    "supabase_url": {
+      "type": "string",
+      "title": "Supabase project URL",
+      "description": "https://<ref>.supabase.co (optional; lets Sentinel check what anonymous users can read)",
+      "default": ""
+    },
+    "supabase_anon_key": {
+      "type": "string",
+      "title": "Supabase anon key",
+      "description": "The public anon key, never the service-role key (optional, used with the project URL)",
+      "default": ""
+    },
+    "app_repo": {
+      "type": "directory",
+      "title": "App source folder",
+      "description": "Your app's code, scanned for leaked keys (optional)",
+      "default": ""
+    }
+  }
+}

@@ -22,5 +22,9 @@ def main() -> None:
     from database_sentinel.mcp_server.target import Target
 
     from .graph import build_graph
-    out = build_graph().invoke({"target": Target(a.dsn, a.rest_url, a.anon_key, a.repo)})
+    try:
+        out = build_graph().invoke({"target": Target(a.dsn, a.rest_url, a.anon_key, a.repo)})
+    except Exception as e:  # clean one-line error for CLI users
+        raise SystemExit(f"sentinel-audit: {type(e).__name__}: {e}\n"
+                         "Check --dsn, and SENTINEL_BASE_URL / SENTINEL_API_KEY / SENTINEL_MODEL for the LLM.")
     print(out["report"])

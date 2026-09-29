@@ -66,3 +66,9 @@ def test_mcp_exposes_no_write_tools():
     from database_sentinel.mcp_server import tools
     public = {n for n in dir(tools) if not n.startswith("_") and callable(getattr(tools, n)) and getattr(tools, n).__module__ == tools.__name__}
     assert public == {"run_audit_query", "get_schema", "probe_as_anon", "scan_repo"}
+
+
+def test_docs_role_sql_in_sync():
+    from database_sentinel.mcp_server.setup import role_sql
+    docs = (Path(__file__).parents[1] / "docs" / "mcp.md").read_text()
+    assert all(l in docs for l in role_sql().splitlines() if l.strip() and not l.startswith("--"))

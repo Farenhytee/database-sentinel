@@ -2,39 +2,57 @@
 
 `sentinel-mcp` runs it over stdio; `sentinel-mcp --role-sql` prints the read-only role SQL.
 """
+import functools
 import sys
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 from database_sentinel.agent.prompts import client_prompt
 
 from . import tools
 from .paths import SUPABASE
+from .queries import audit_queries
 from .setup import role_sql
 from .target import Target
 
 mcp = MCPServer("sentinel-mcp", instructions="Read-only Supabase security audit tools.")
 
 
+def _client_errors(fn):
+    """Pass input errors (bad query id, table name...) to the client so its LLM can correct itself."""
+    @functools.wraps(fn)
+    def wrapper(*a, **kw):
+        try:
+            return fn(*a, **kw)
+        except (ValueError, KeyError) as e:
+            raise ToolError(str(e)) from e
+    return wrapper
+
+
 @mcp.tool()
+@_client_errors
 def run_audit_query(query_id: str) -> list[dict]:
     """Run one allowlisted audit query (Q1..Q20 from audit-queries.md)."""
     return tools.run_audit_query(Target.from_env(), query_id)
 
 
 @mcp.tool()
+@_client_errors
 def get_schema(schema: str = "public") -> dict:
     """Tables, views, columns, grants and functions in a schema."""
     return tools.get_schema(Target.from_env(), schema)
 
 
 @mcp.tool()
+@_client_errors
 def probe_as_anon(table: str, op: str = "select") -> dict:
     """Check via PostgREST whether the anon key can read a table (row count only)."""
     return tools.probe_as_anon(Target.from_env(), table, op)
 
 
 @mcp.tool()
+@_client_errors
 def scan_repo() -> list[dict]:
     """Scan the configured repo for exposed service-role keys / JWT secrets (locations only)."""
     return tools.scan_repo(Target.from_env())
@@ -67,6 +85,7 @@ def main() -> None:
     if "--role-sql" in sys.argv:
         print(role_sql())
         return
+    audit_queries()  # fail fast if the allowlist isn't read-only
     mcp.run()
 
 
