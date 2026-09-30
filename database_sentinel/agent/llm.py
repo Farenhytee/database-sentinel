@@ -14,5 +14,6 @@ def model_id() -> str:
 def get_model() -> ChatOpenAI:
     key = os.environ.get("SENTINEL_API_KEY") or os.environ.get("OPENROUTER_API_KEY") or "not-needed"  # local servers ignore it
     base = os.environ.get("SENTINEL_BASE_URL") or DEFAULT_BASE_URL
-    extra = {"usage": {"include": True}} if "openrouter.ai" in base else None  # OpenRouter returns usage.cost
+    # OpenRouter: return usage.cost; route to the fastest provider (slow ones pushed long outputs past the eval deadline)
+    extra = {"usage": {"include": True}, "provider": {"sort": "throughput"}} if "openrouter.ai" in base else None
     return ChatOpenAI(model=model_id(), base_url=base, api_key=key, temperature=0, timeout=120, extra_body=extra)

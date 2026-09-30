@@ -23,4 +23,6 @@ Each run appends to `results/runs.jsonl`. There's a 5-minute limit per system pe
 | 2026-09-29 | dev | deepseek-v4-flash | [Run 1: first LLM run](2026-09-29-dev-run1.md) |
 | 2026-09-29 | dev | deepseek-v4-flash | [Run 2: after dev tuning](2026-09-29-dev-run2.md) |
 | 2026-09-29 | test | deepseek-v4-flash | [Frozen v0.2.0, 3 runs: A F1 0.782, B0 0.766, R0 0.559](2026-09-29-test.md) |
-| _pending_ | test | v4-flash (+ v4-pro) | v0.2.1, 3 runs |
+| 2026-09-29 | dev | deepseek-v4-flash | [v0.2.1 fixes, 2 runs: A F1 0.963 / 0.945](2026-09-29-dev-v0.2.1.md) |
+| 2026-09-30 | test | deepseek-v4-flash | [v0.2.1, 3 runs: A F1 0.831, B0 0.849 (fixes came from test failures)](2026-09-30-test-v0.2.1.md) |
+| _pending_ | test | deepseek-v4-pro | 3 runs |

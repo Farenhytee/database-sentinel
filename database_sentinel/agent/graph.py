@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
 from langgraph.runtime import Runtime
 from langgraph.types import interrupt
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import ToolNode, create_react_agent
 
 from database_sentinel.mcp_server import tools
 from database_sentinel.mcp_server.db import query
@@ -17,7 +17,7 @@ from .fixes import fix_for
 from .introspect import introspect
 from .llm import get_model, model_id
 from .models import Findings, clean
-from .prompts import AGENT_SUFFIX, analyst_prompt
+from .prompts import AGENT_SUFFIX, EXTRACT_PROMPT, analyst_prompt
 from .rules import r0
 from .scoring import score
 
@@ -65,8 +65,9 @@ def _tools(t: Target):
 
 
 def analyze(s: State, runtime: Runtime[Target]) -> State:
-    agent = create_react_agent(get_model(), _tools(runtime.context), prompt=analyst_prompt() + AGENT_SUFFIX,
-                               response_format=Findings)
+    # handle_tool_errors: a bad tool arg goes back to the model as an error message instead of ending the audit
+    agent = create_react_agent(get_model(), ToolNode(_tools(runtime.context), handle_tool_errors=True), prompt=analyst_prompt() + AGENT_SUFFIX,
+                               response_format=(EXTRACT_PROMPT, Findings))
     msg = json.dumps({"introspection": s["introspection"], "candidates": s["candidates"]}, default=str)
     out = agent.invoke({"messages": [("user", msg)]}, {"recursion_limit": 25})
     findings = clean([f.model_dump() for f in out["structured_response"].findings])

@@ -1,7 +1,7 @@
 {
   "name": "database-sentinel",
   "displayName": "Database Sentinel",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Security audits for Supabase and MongoDB: the audit skill plus read-only Supabase MCP tools.",
   "author": { "name": "Paarth Jha", "url": "https://github.com/Farenhytee" },
   "homepage": "https://github.com/Farenhytee/database-sentinel",

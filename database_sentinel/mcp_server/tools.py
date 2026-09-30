@@ -60,7 +60,7 @@ def probe_as_anon(t: Target, table: str, op: str = "select") -> dict:
     if op != "select":
         raise ValueError("only op='select' is allowed in v1")
     if not _IDENT.match(table):
-        raise ValueError("bad table name")
+        raise ValueError(f"bad table name {table!r}: pass a bare public table/view name, e.g. 'todos'")
     if not (t.rest_url and t.anon_key):
         raise ValueError("target has no rest_url/anon_key")
     r = httpx.head(f"{t.rest_url}/rest/v1/{table}", params={"select": "*", "limit": "1"},

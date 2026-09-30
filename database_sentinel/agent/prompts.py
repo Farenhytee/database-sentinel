@@ -29,6 +29,11 @@ say it is exploitable, and look for issues the rules miss (e.g. privilege column
 Use tools when the dump is not enough: get_schema to inspect grants or function bodies, run_audit_query to re-run a query,
 probe_as_anon to check whether anon can actually read a table or view. Use at most 8 tool calls, then answer."""
 
+# The ReAct agent's final structured call sees only the conversation, not the system prompt.
+EXTRACT_PROMPT = """Convert the auditor's final conclusion above into findings. Include ONLY issues the auditor concluded
+are exploitable. Candidates or patterns it dismissed, rejected, called false positives, intended or "no finding" are NOT
+findings. object must be a real schema.name, storage.<bucket> or file path. If nothing is exploitable, return an empty list."""
+
 
 CLIENT_SUFFIX = """
 You are running inside the user's MCP client. Gather the data yourself: call run_audit_query for Q1..Q20,

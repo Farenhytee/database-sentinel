@@ -10,6 +10,13 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 
 ## Changelog
 
+**v0.2.1 (2026-09-30)**
+- **Test F1:** agent 0.782 → 0.831, single-prompt 0.766 → 0.849. No crashes or timeouts ([results](docs/evals/2026-09-30-test-v0.2.1.md)).
+- **Fixed:**
+  - A bad tool argument no longer ends the audit; the error goes back to the model.
+  - OpenRouter calls route to the fastest provider (slow ones caused timeouts).
+  - The agent's final findings step no longer lists candidates it had dismissed.
+
 **v0.2.0 (2026-09-29)**
 - **Published test results:** agent F1 0.782, single-prompt 0.766, rules 0.559 on a blind, locked 10-case test split, 3 runs each ([results](docs/evals/2026-09-29-test.md)).
 - **Bench:** 25 labeled cases (15 dev, 10 blind test).
@@ -165,13 +172,18 @@ Only `SKILL.md` (~2K tokens) and `core/*` load up front; each backend's files lo
 
 `bench/cases/` holds labeled Supabase schemas applied to a local Supabase. `evals/` scores three systems on precision, recall and F1: R0 (rules, no LLM), B0 (single prompt) and A (agent). The test split is frozen and never tuned on.
 
-Test split, frozen v0.2.0, `deepseek-v4-flash`, 3 runs ([details](docs/evals/2026-09-29-test.md)):
+Test split (10 blind, locked cases), `deepseek-v4-flash`, 3 runs each:
 
-| System | Precision | Recall | F1 | CRITICAL recall | $/audit |
-|---|---|---|---|---|---|
-| A (agent) | 0.774 | 0.803 | **0.782** | 1.000 | $0.0024 |
-| B0 (single prompt) | 0.795 | 0.743 | 0.766 | 0.889 | $0.0016 |
-| R0 (rules) | 0.413 | 0.864 | 0.559 | 1.000 | $0 |
+| Version | System | Precision | Recall | F1 | CRITICAL recall | $/audit |
+|---|---|---|---|---|---|---|
+| v0.2.1 | A (agent) | 0.851 | 0.818 | **0.831** | 1.000 | $0.0044 |
+| v0.2.1 | B0 (single prompt) | 0.810 | 0.894 | **0.849** | 1.000 | $0.0008 |
+| v0.2.0 (frozen, [details](docs/evals/2026-09-29-test.md)) | A (agent) | 0.774 | 0.803 | 0.782 | 1.000 | $0.0024 |
+| v0.2.0 (frozen) | B0 (single prompt) | 0.795 | 0.743 | 0.766 | 0.889 | $0.0016 |
+| both | R0 (rules) | 0.413 | 0.864 | 0.559 | 1.000 | $0 |
+
+v0.2.1 fixes the crashes and timeouts seen in the v0.2.0 test run. The fixes were diagnosed on dev only, but they came from test failures, so v0.2.0 is the blind number ([v0.2.1 details](docs/evals/2026-09-30-test-v0.2.1.md)). A and B0 are within noise of each other. The agent is more precise, gives fewer false alarms on clean projects and verifies findings as anon, at ~5× the cost.
+
 ```bash
 pip install -e ".[dev]" && supabase start && python -m evals.run --split dev
 ```
