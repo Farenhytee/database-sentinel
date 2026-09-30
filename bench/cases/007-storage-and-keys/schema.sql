@@ -10,3 +10,6 @@ create policy "documents_own" on public.documents for all to authenticated
 insert into storage.buckets (id, name, public) values
   ('avatars', 'avatars', true),   -- public profile pictures: intended
   ('invoices', 'invoices', true); -- customer invoices: should be private
+
+-- seed
+insert into public.documents (owner_id, storage_path) values ('00000000-0000-0000-0000-000000000001', 'a/contract.pdf'), ('00000000-0000-0000-0000-000000000002', 'b/id.png');

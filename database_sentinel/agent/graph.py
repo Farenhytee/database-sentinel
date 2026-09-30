@@ -1,9 +1,11 @@
-"""detect -> introspect -> analyze -> score -> report."""
+"""detect -> introspect -> analyze -> verify -> score -> report [-> approve (HITL) -> fix]."""
 import json
 from typing import TypedDict
 
 from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
+from langgraph.runtime import Runtime
+from langgraph.types import interrupt
 from langgraph.prebuilt import create_react_agent
 
 from database_sentinel.mcp_server import tools
@@ -11,41 +13,43 @@ from database_sentinel.mcp_server.db import query
 from database_sentinel.mcp_server.target import Target
 
 from .catalog import MANUAL, patterns, severity
+from .fixes import fix_for
 from .introspect import introspect
 from .llm import get_model, model_id
-from .models import Findings
+from .models import Findings, clean
 from .prompts import AGENT_SUFFIX, analyst_prompt
 from .rules import r0
 from .scoring import score
 
 
+# The Target (DSN with password) travels as runtime context, never in state, so checkpoints hold no credentials.
 class State(TypedDict, total=False):
-    target: Target
     introspection: dict
     candidates: list[dict]
     findings: list[dict]
     score: dict
     report: str
     model: str
+    fixes: list[str]
 
 
-def detect(s: State) -> State:
-    ok = query(s["target"].dsn, "select count(*) = 2 as ok from pg_namespace where nspname in ('auth', 'storage')")
+def detect(s: State, runtime: Runtime[Target]) -> State:
+    ok = query(runtime.context.dsn, "select count(*) = 2 as ok from pg_namespace where nspname in ('auth', 'storage')")
     if not ok[0]["ok"]:
         raise ValueError("target is not a Supabase project (no auth/storage schemas)")
     return {}
 
 
-def do_introspect(s: State) -> State:
-    intro = introspect(s["target"])
+def do_introspect(s: State, runtime: Runtime[Target]) -> State:
+    intro = introspect(runtime.context)
     return {"introspection": intro, "candidates": r0(intro)}
 
 
 def _tools(t: Target):
     @tool
-    def get_schema(schema: str = "public") -> dict:
+    def get_schema(schema_name: str = "public") -> dict:
         """Tables/views with RLS flag, anon/authenticated grants, columns, view SQL; functions with bodies."""
-        return tools.get_schema(t, schema)
+        return tools.get_schema(t, schema_name)
 
     @tool
     def run_audit_query(query_id: str) -> list[dict]:
@@ -60,18 +64,34 @@ def _tools(t: Target):
     return [get_schema, run_audit_query, probe_as_anon]
 
 
-def analyze(s: State) -> State:
-    agent = create_react_agent(get_model(), _tools(s["target"]), prompt=analyst_prompt() + AGENT_SUFFIX,
+def analyze(s: State, runtime: Runtime[Target]) -> State:
+    agent = create_react_agent(get_model(), _tools(runtime.context), prompt=analyst_prompt() + AGENT_SUFFIX,
                                response_format=Findings)
     msg = json.dumps({"introspection": s["introspection"], "candidates": s["candidates"]}, default=str)
     out = agent.invoke({"messages": [("user", msg)]}, {"recursion_limit": 25})
-    seen, findings = set(), []
-    for f in out["structured_response"].findings:
-        k = (f.pattern_id, f.object.lower())
-        if k not in seen:
-            seen.add(k)
-            findings.append({**f.model_dump(), "severity": severity(f.pattern_id)})
-    return {"findings": findings, "model": model_id()}
+    findings = clean([f.model_dump() for f in out["structured_response"].findings])
+    return {"findings": [{**f, "severity": severity(f["pattern_id"])} for f in findings], "model": model_id()}
+
+
+# Patterns where anon reading rows proves the finding. Others (authenticated-only) can't be probed as anon.
+PROBEABLE = {"RLS_DISABLED", "POLICIES_BUT_NO_RLS", "USING_TRUE", "VIEW_NO_SECURITY_INVOKER",
+             "MATVIEW_EXPOSED", "SENSITIVE_COLUMNS"}
+
+
+def verify(s: State, runtime: Runtime[Target]) -> State:
+    """Flag findings anon can actually exploit. Never drops a finding."""
+    t, out = runtime.context, []
+    for f in s["findings"]:
+        f = {**f, "verified": None}
+        schema, _, name = f["object"].lower().partition(".")
+        if f["pattern_id"] in PROBEABLE and schema == "public" and t.rest_url and t.anon_key:
+            try:
+                r = tools.probe_as_anon(t, name)
+                f["verified"] = 200 <= r["status"] < 300 and (r["anon_rows_visible"] or 0) > 0  # 206 when rows > limit
+            except Exception:
+                pass  # unverifiable, not refuted
+        out.append(f)
+    return {"findings": out}
 
 
 def do_score(s: State) -> State:
@@ -85,20 +105,30 @@ def report(s: State) -> State:
         fs = [f for f in s["findings"] if f["severity"] == sev]
         if fs:
             lines.append(f"## {sev}")
-            lines += [f"- **{patterns()[f['pattern_id']]['title']}** `{f['object']}`: {f['evidence']}" for f in fs]
+            lines += [f"- **{patterns()[f['pattern_id']]['title']}** `{f['object']}`: {f['evidence']}"
+                      + (" · confirmed: anon can read rows" if f.get("verified") else "") for f in fs]
             lines.append("")
     lines.append("## Manual checks (need dashboard access)")
     lines += [f"- {patterns()[p]['title']}" for p in sorted(MANUAL) if p in patterns()]
     return {"report": "\n".join(lines)}
 
 
-def build_graph():
-    g = StateGraph(State)
-    for name, fn in [("detect", detect), ("introspect", do_introspect), ("analyze", analyze),
-                     ("score", do_score), ("report", report)]:
+def approve(s: State) -> State:
+    """HITL: pause until the user picks which findings to fix. Resume with Command(resume=[indexes])."""
+    picked = interrupt({"findings": [{"i": i, "pattern_id": f["pattern_id"], "object": f["object"],
+                                      "severity": f["severity"]} for i, f in enumerate(s["findings"])]})
+    return {"fixes": [fix_for(s["findings"][i]) for i in picked or [] if 0 <= i < len(s["findings"])]}
+
+
+def build_graph(checkpointer=None, fixes: bool = False):
+    """fixes=True adds the approval pause + fix step and needs a checkpointer (MemorySaver locally, PostgresSaver in cloud)."""
+    g = StateGraph(State, context_schema=Target)
+    steps = [("detect", detect), ("introspect", do_introspect), ("analyze", analyze), ("verify", verify),
+             ("score", do_score), ("report", report)] + ([("approve", approve)] if fixes else [])
+    for name, fn in steps:
         g.add_node(name, fn)
     g.set_entry_point("detect")
-    for a, b in [("detect", "introspect"), ("introspect", "analyze"), ("analyze", "score"), ("score", "report")]:
+    for (a, _), (b, _) in zip(steps, steps[1:]):
         g.add_edge(a, b)
-    g.add_edge("report", END)
-    return g.compile()
+    g.add_edge(steps[-1][0], END)
+    return g.compile(checkpointer=checkpointer)

@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: MASS_ASSIGNMENT, object: public.enrollments}
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.award_certificate}
+  - {pattern_id: EXPOSED_RPC_NO_AUTH, object: public.award_certificate}

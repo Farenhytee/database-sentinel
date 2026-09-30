@@ -1,12 +1,9 @@
 """Set-match findings to labels on (pattern_id, normalized object)."""
 from database_sentinel.agent.catalog import in_scope
+from database_sentinel.agent.models import norm_object
 
 
-def norm(obj: str) -> str:
-    o = obj.strip().strip('"').lower().split("(")[0]
-    if "/" in o or o.endswith((".ts", ".js", ".tsx", ".jsx", ".env")) or o.startswith(".env"):
-        return o.removeprefix("./")  # repo file path
-    return o if "." in o else f"public.{o}"
+norm = norm_object
 
 
 def keys(findings: list[dict]) -> set[tuple[str, str]]:
@@ -16,4 +13,5 @@ def keys(findings: list[dict]) -> set[tuple[str, str]]:
 
 def match(pred: list[dict], labels: list[dict]) -> dict:
     p, g = keys(pred), keys(labels)
-    return {"tp": sorted(p & g), "fp": sorted(p - g), "fn": sorted(g - p)}
+    v = keys([f for f in pred if f.get("verified")])  # confirmed by the anon probe
+    return {"tp": sorted(p & g), "fp": sorted(p - g), "fn": sorted(g - p), "verified": sorted(v)}

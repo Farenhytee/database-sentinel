@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: POLICIES_BUT_NO_RLS, object: public.automation_rules}
+  - {pattern_id: RLS_NO_POLICIES, object: public.telemetry_raw}
+  - {pattern_id: JWT_SECRET_EXPOSED, object: .env}

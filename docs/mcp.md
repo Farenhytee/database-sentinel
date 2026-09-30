@@ -40,6 +40,7 @@ claude plugin marketplace add Farenhytee/database-sentinel
 claude plugin install database-sentinel@database-sentinel
 ```
 Or inside Claude Code: `/plugin marketplace add Farenhytee/database-sentinel`, then `/plugin install database-sentinel@database-sentinel`.
+Then set your connection string in Claude Code: `/plugin configure database-sentinel@database-sentinel`.
 
 **Cursor**
 

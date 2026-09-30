@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: MASS_ASSIGNMENT, object: public.workspace_members}
+  - {pattern_id: MULTIPLE_PERMISSIVE, object: public.messages}
+  - {pattern_id: MUTABLE_SEARCH_PATH, object: public.touch_channel_activity}

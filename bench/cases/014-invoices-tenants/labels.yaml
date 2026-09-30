@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: POLICIES_BUT_NO_RLS, object: public.invoice_items}
+  - {pattern_id: VIEW_NO_SECURITY_INVOKER, object: public.tenant_invoice_totals}
+  - {pattern_id: PUBLIC_BUCKET, object: storage.exports}

@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: USING_TRUE, object: public.follows}
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.get_feed}
+  - {pattern_id: MUTABLE_SEARCH_PATH, object: public.get_feed}

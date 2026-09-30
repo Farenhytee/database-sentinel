@@ -1,0 +1,3 @@
+findings:
+  - {pattern_id: USING_TRUE, object: public.tickets}
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.org_ticket_stats}

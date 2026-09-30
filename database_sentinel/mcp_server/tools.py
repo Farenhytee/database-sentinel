@@ -36,8 +36,9 @@ ORDER BY c.relname
 """
 _FUNCS = """
 SELECT p.proname AS name, pg_get_function_identity_arguments(p.oid) AS args,
-  p.prosecdef AS security_definer, p.proconfig AS config,
+  pg_get_function_result(p.oid) AS returns, p.prosecdef AS security_definer, p.proconfig AS config,
   has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_execute,
+  has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_execute,
   left(p.prosrc, 2000) AS body
 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = %s AND p.prokind = 'f'

@@ -15,3 +15,7 @@ create table public.todos (
   done boolean default false
 );
 -- Created via migration; RLS never enabled.
+
+-- seed
+insert into public.profiles (id, display_name) values ('00000000-0000-0000-0000-000000000001', 'Alice'), ('00000000-0000-0000-0000-000000000002', 'Bob');
+insert into public.todos (user_id, title) values ('00000000-0000-0000-0000-000000000001', 'buy milk'), ('00000000-0000-0000-0000-000000000002', 'call mom');

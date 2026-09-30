@@ -1,5 +1,7 @@
 # 🛡️ Database Sentinel
 
+[![ci](https://github.com/Farenhytee/database-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/Farenhytee/database-sentinel/actions/workflows/ci.yml)
+
 **Security audits for your database backend.** Ask "audit my database" and get a scored report with exact fix code.
 
 Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for any AI client, or a **CLI agent** that uses your own model (both Supabase).
@@ -7,6 +9,15 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 ---
 
 ## Changelog
+
+**v0.2.0 (2026-09-29)**
+- **Published test results:** agent F1 0.782, single-prompt 0.766, rules 0.559 on a blind, locked 10-case test split, 3 runs each ([results](docs/evals/2026-09-29-test.md)).
+- **Bench:** 25 labeled cases (15 dev, 10 blind test).
+- **Agent:**
+  - **Verify step:** probes as anon to confirm exploitable findings.
+  - **`--fix`:** prints fix SQL for findings you pick. It's never executed.
+  - **Cost reporting:** tokens, $ and tool calls for each audit.
+- **CI:** free rules-only regression gate.
 
 **2026-09-29**
 - **One-command install:** Claude Code plugin (skill + MCP server, prompts for your connection string) and an **Add to Cursor** button.
@@ -29,7 +40,7 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 claude plugin marketplace add Farenhytee/database-sentinel
 claude plugin install database-sentinel@database-sentinel
 ```
-Then ask: `Audit my database`. Supabase users: create the read-only login first ([step 1](docs/mcp.md#1-create-a-read-only-login-in-supabase)).
+Supabase users: create the read-only login ([step 1](docs/mcp.md#1-create-a-read-only-login-in-supabase)), then run `/plugin configure database-sentinel@database-sentinel` in Claude Code. Then ask: `Audit my database`.
 
 **Cursor** &nbsp; [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=sentinel&config=eyJzZW50aW5lbCI6eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL0ZhcmVuaHl0ZWUvZGF0YWJhc2Utc2VudGluZWwiLCJzZW50aW5lbC1tY3AiXSwiZW52Ijp7IlNFTlRJTkVMX0RTTiI6InBvc3RncmVzcWw6Ly9zZW50aW5lbF9hdWRpdG9yOlBBU1NXT1JEQGRiLlBST0pFQ1RfUkVGLnN1cGFiYXNlLmNvOjU0MzIvcG9zdGdyZXMiLCJTRU5USU5FTF9SRVNUX1VSTCI6Imh0dHBzOi8vUFJPSkVDVF9SRUYuc3VwYWJhc2UuY28iLCJTRU5USU5FTF9BTk9OX0tFWSI6IkFOT05fS0VZIiwiU0VOVElORUxfUkVQTyI6IiJ9fX0%3D)
 
@@ -153,6 +164,14 @@ Only `SKILL.md` (~2K tokens) and `core/*` load up front; each backend's files lo
 ### E. Benchmark and evals
 
 `bench/cases/` holds labeled Supabase schemas applied to a local Supabase. `evals/` scores three systems on precision, recall and F1: R0 (rules, no LLM), B0 (single prompt) and A (agent). The test split is frozen and never tuned on.
+
+Test split, frozen v0.2.0, `deepseek-v4-flash`, 3 runs ([details](docs/evals/2026-09-29-test.md)):
+
+| System | Precision | Recall | F1 | CRITICAL recall | $/audit |
+|---|---|---|---|---|---|
+| A (agent) | 0.774 | 0.803 | **0.782** | 1.000 | $0.0024 |
+| B0 (single prompt) | 0.795 | 0.743 | 0.766 | 0.889 | $0.0016 |
+| R0 (rules) | 0.413 | 0.864 | 0.559 | 1.000 | $0 |
 ```bash
 pip install -e ".[dev]" && supabase start && python -m evals.run --split dev
 ```

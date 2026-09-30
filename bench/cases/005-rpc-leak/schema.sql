@@ -18,3 +18,6 @@ language sql immutable set search_path = '' as $$ select lower(regexp_replace(t,
 -- Invoker rights + auth check: fine.
 create function public.delete_my_notes() returns void
 language sql set search_path = '' as $$ delete from public.notes where user_id = (select auth.uid()) $$;
+
+-- seed
+insert into public.notes (user_id, body) values ('00000000-0000-0000-0000-000000000001', 'private note'), ('00000000-0000-0000-0000-000000000002', 'another');

@@ -18,3 +18,8 @@ create table public.scores (
 alter table public.scores enable row level security;
 create policy "scores_read_own" on public.scores for select to authenticated using ((select auth.uid()) = user_id);
 create materialized view public.leaderboard as select user_id, sum(points) as total from public.scores group by user_id;
+
+-- seed
+insert into public.profiles (id, username, email, phone) values ('00000000-0000-0000-0000-000000000001', 'alice', 'alice@example.invalid', '555-0101'), ('00000000-0000-0000-0000-000000000002', 'bob', 'bob@example.invalid', '555-0102');
+insert into public.scores (user_id, points) values ('00000000-0000-0000-0000-000000000001', 10), ('00000000-0000-0000-0000-000000000002', 7);
+refresh materialized view public.leaderboard;

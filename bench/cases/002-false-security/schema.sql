@@ -15,3 +15,7 @@ create table public.orders (
 -- Policies written, but RLS never enabled on orders.
 create policy "orders_read_own" on public.orders for select to authenticated using ((select auth.uid()) = user_id);
 create policy "orders_insert_own" on public.orders for insert to authenticated with check ((select auth.uid()) = user_id);
+
+-- seed
+insert into public.products (name, price_cents) values ('Mug', 1200), ('Shirt', 2500);
+insert into public.orders (user_id, product_id, shipping_address) values ('00000000-0000-0000-0000-000000000001', 1, '1 Main St'), ('00000000-0000-0000-0000-000000000002', 2, '2 Side St');

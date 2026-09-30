@@ -1,0 +1,5 @@
+findings:
+  - {pattern_id: POLICY_NO_ROLE_SCOPE, object: public.check_ins}
+  - {pattern_id: VIEW_NO_SECURITY_INVOKER, object: public.challenge_standings}
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.grant_finisher_medal}
+  - {pattern_id: EXPOSED_RPC_NO_AUTH, object: public.grant_finisher_medal}

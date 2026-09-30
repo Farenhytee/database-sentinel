@@ -72,3 +72,50 @@ def test_docs_role_sql_in_sync():
     from database_sentinel.mcp_server.setup import role_sql
     docs = (Path(__file__).parents[1] / "docs" / "mcp.md").read_text()
     assert all(l in docs for l in role_sql().splitlines() if l.strip() and not l.startswith("--"))
+
+
+def test_fix_for():
+    from database_sentinel.agent.fixes import fix_for
+    assert "ENABLE ROW LEVEL SECURITY" in fix_for({"pattern_id": "RLS_DISABLED", "object": "public.todos"})
+    assert "WHERE id = 'invoices'" in fix_for({"pattern_id": "PUBLIC_BUCKET", "object": "storage.invoices"})
+    evil = fix_for({"pattern_id": "RLS_DISABLED", "object": "public.x; drop table y"})
+    assert all(l.startswith("--") for l in evil.splitlines())  # unsafe object -> comments only, no SQL
+    assert fix_for({"pattern_id": "USING_TRUE", "object": "public.t"}).splitlines()[1].startswith("--")
+
+
+def test_verify_flags_without_dropping(monkeypatch):
+    from database_sentinel.agent import graph
+    probes = {"todos": {"status": 200, "anon_rows_visible": 2}, "orders": {"status": 200, "anon_rows_visible": 0}}
+    monkeypatch.setattr(graph.tools, "probe_as_anon", lambda t, name: probes[name])
+    t = Target(dsn="", rest_url="http://x", anon_key="k")
+    fs = [{"pattern_id": "RLS_DISABLED", "object": "public.todos"},
+          {"pattern_id": "USING_TRUE", "object": "public.orders"},
+          {"pattern_id": "MASS_ASSIGNMENT", "object": "public.profiles"}]
+    from types import SimpleNamespace
+    out = graph.verify({"findings": fs}, SimpleNamespace(context=t))["findings"]
+    assert [f["verified"] for f in out] == [True, False, None]
+
+
+def test_lock_detects_edit(tmp_path, monkeypatch):
+    from evals import bench
+    (tmp_path / "cases" / "099-x").mkdir(parents=True)
+    (tmp_path / "cases" / "099-x" / "schema.sql").write_text("select 1;")
+    (tmp_path / "splits.yaml").write_text('dev: []\ntest: ["099"]\n')
+    monkeypatch.setattr(bench, "BENCH", tmp_path)
+    monkeypatch.setattr(bench, "LOCK", tmp_path / "test.lock")
+    bench.write_lock()
+    bench.check_lock()
+    (tmp_path / "cases" / "099-x" / "schema.sql").write_text("select 2;")
+    import pytest
+    with pytest.raises(SystemExit):
+        bench.check_lock()
+
+
+def test_clean_normalizes_and_dedupes():
+    from database_sentinel.agent.models import clean
+    out = clean([{"pattern_id": "SENSITIVE_COLUMNS", "object": "public.app_settings.stripe_key"},
+                 {"pattern_id": "SENSITIVE_COLUMNS", "object": "app_settings"},
+                 {"pattern_id": "POLICIES_BUT_NO_RLS", "object": "public.orders"},
+                 {"pattern_id": "RLS_DISABLED", "object": "public.orders"}])
+    assert [(f["pattern_id"], f["object"]) for f in out] == [("SENSITIVE_COLUMNS", "public.app_settings"),
+                                                             ("POLICIES_BUT_NO_RLS", "public.orders")]

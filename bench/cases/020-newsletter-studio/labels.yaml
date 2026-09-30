@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: RLS_DISABLED, object: public.issue_opens}
+  - {pattern_id: SENSITIVE_COLUMNS, object: public.sending_settings}
+  - {pattern_id: SERVICE_ROLE_EXPOSED, object: src/lib/admin-client.ts}

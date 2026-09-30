@@ -19,3 +19,7 @@ create table public.teams (
 alter table public.teams enable row level security;
 create policy "teams_owner_all" on public.teams for all to authenticated
   using ((select auth.uid()) = owner_id) with check ((select auth.uid()) = owner_id);
+
+-- seed
+insert into public.profiles (id, display_name) values ('00000000-0000-0000-0000-000000000001', 'Alice'), ('00000000-0000-0000-0000-000000000002', 'Bob');
+insert into public.teams (owner_id, name) values ('00000000-0000-0000-0000-000000000001', 'Team A');

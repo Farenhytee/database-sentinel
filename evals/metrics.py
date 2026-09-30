@@ -15,6 +15,8 @@ def summarize(per_case: dict[str, dict], clean: set[str]) -> dict:
     fp = sum(len(m["fp"]) for m in per_case.values())
     fn = sum(len(m["fn"]) for m in per_case.values())
     p, r, f1 = prf(tp, fp, fn)
+    ver = [k for m in per_case.values() for k in m.get("verified", [])]
+    ver_tp = sum(1 for m in per_case.values() for k in m.get("verified", []) if k in m["tp"])
     hit, tot = Counter(), Counter()
     for m in per_case.values():
         for pid, _ in m["tp"]:
@@ -24,4 +26,5 @@ def summarize(per_case: dict[str, dict], clean: set[str]) -> dict:
             tot[severity(pid)] += 1
     return {"tp": tp, "fp": fp, "fn": fn, "precision": round(p, 3), "recall": round(r, 3), "f1": round(f1, 3),
             "recall_by_severity": {s: round(hit[s] / tot[s], 3) for s in tot},
-            "clean_fp": sum(len(per_case[c]["fp"]) for c in clean if c in per_case)}
+            "clean_fp": sum(len(per_case[c]["fp"]) for c in clean if c in per_case),
+            "verified": len(ver), "verified_precision": round(ver_tp / len(ver), 3) if ver else None}

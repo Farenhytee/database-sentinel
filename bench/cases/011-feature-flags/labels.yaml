@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: RLS_NO_POLICIES, object: public.feature_flags}
+  - {pattern_id: SENSITIVE_COLUMNS, object: public.app_settings}
+  - {pattern_id: USING_TRUE, object: public.app_settings}

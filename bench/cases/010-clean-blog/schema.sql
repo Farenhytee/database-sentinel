@@ -27,3 +27,7 @@ create table public.audit_log (
 );
 alter table public.audit_log enable row level security;
 create policy "audit_admin_read" on public.audit_log for select to authenticated using ((select private.is_admin()));
+
+-- seed
+insert into public.posts (author_id, title, body, published) values ('00000000-0000-0000-0000-000000000001', 'Hello', 'hi', true), ('00000000-0000-0000-0000-000000000002', 'Draft', 'wip', false);
+insert into public.audit_log (actor, action) values ('00000000-0000-0000-0000-000000000001', 'login');

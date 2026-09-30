@@ -34,3 +34,7 @@ create function public.slugify(t text) returns text
 language sql immutable set search_path = '' as $$ select lower(regexp_replace(t, '[^a-zA-Z0-9]+', '-', 'g')) $$;
 
 insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true);
+
+-- seed
+insert into public.profiles (id, display_name) values ('00000000-0000-0000-0000-000000000001', 'Alice'), ('00000000-0000-0000-0000-000000000002', 'Bob');
+insert into public.products (name, price_cents) values ('Mug', 1200);

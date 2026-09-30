@@ -1,0 +1,3 @@
+findings:
+  - {pattern_id: USING_TRUE, object: public.appointments}
+  - {pattern_id: POLICY_NO_ROLE_SCOPE, object: public.appointments}

@@ -16,15 +16,29 @@ def main() -> None:
     ap.add_argument("--rest-url", default=os.environ.get("SENTINEL_REST_URL", ""))
     ap.add_argument("--anon-key", default=os.environ.get("SENTINEL_ANON_KEY", ""))
     ap.add_argument("--repo", default=os.environ.get("SENTINEL_REPO"))
+    ap.add_argument("--fix", action="store_true", help="after the report, pick findings and print fix SQL (never executed)")
     a = ap.parse_args()
     if not a.dsn:
         ap.error("--dsn or SENTINEL_DSN is required")
     from database_sentinel.mcp_server.target import Target
 
     from .graph import build_graph
+    target = Target(a.dsn, a.rest_url, a.anon_key, a.repo)
     try:
-        out = build_graph().invoke({"target": Target(a.dsn, a.rest_url, a.anon_key, a.repo)})
+        if not a.fix:
+            print(build_graph().invoke({}, context=target)["report"])
+            return
+        from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.types import Command
+
+        graph, cfg = build_graph(MemorySaver(), fixes=True), {"configurable": {"thread_id": "cli"}}
+        out = graph.invoke({}, cfg, context=target)
+        print(out["report"])
+        pause = out["__interrupt__"][0].value["findings"]
+        picked = [f["i"] for f in pause
+                  if input(f"Fix [{f['severity']}] {f['pattern_id']} {f['object']}? [y/N] ").strip().lower() == "y"]
+        fixes = graph.invoke(Command(resume=picked), cfg, context=target).get("fixes", [])
+        print("\n-- Review before running. Sentinel never executes this.\n" + "\n\n".join(fixes) if fixes else "No fixes selected.")
     except Exception as e:  # clean one-line error for CLI users
         raise SystemExit(f"sentinel-audit: {type(e).__name__}: {e}\n"
                          "Check --dsn, and SENTINEL_BASE_URL / SENTINEL_API_KEY / SENTINEL_MODEL for the LLM.")
-    print(out["report"])

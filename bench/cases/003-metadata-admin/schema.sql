@@ -10,3 +10,6 @@ create policy "posts_write_own" on public.posts for insert to authenticated with
 -- Admin check trusts user-editable metadata; no TO clause either.
 create policy "posts_admin_delete" on public.posts for delete
   using ((auth.jwt() -> 'user_metadata' ->> 'role') = 'admin');
+
+-- seed
+insert into public.posts (author_id, body, published) values ('00000000-0000-0000-0000-000000000001', 'hello', true), ('00000000-0000-0000-0000-000000000002', 'draft', false);
