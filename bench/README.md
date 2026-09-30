@@ -10,7 +10,7 @@ Labels are exhaustive for in-scope patterns (`agent.catalog.in_scope()`). Object
 
 A table with policies but RLS off is POLICIES_BUT_NO_RLS only (not also RLS_DISABLED).
 
-Objective (label whenever present): RLS_DISABLED, POLICIES_BUT_NO_RLS, RLS_NO_POLICIES, USER_METADATA_IN_POLICY, POLICY_NO_ROLE_SCOPE, MULTIPLE_PERMISSIVE, MUTABLE_SEARCH_PATH (SECURITY DEFINER without search_path), VIEW_NO_SECURITY_INVOKER, MATVIEW_EXPOSED, SERVICE_ROLE_EXPOSED, JWT_SECRET_EXPOSED.
+Objective (label whenever present): RLS_DISABLED (only if anon or authenticated has table privileges), POLICIES_BUT_NO_RLS, RLS_NO_POLICIES, USER_METADATA_IN_POLICY, POLICY_NO_ROLE_SCOPE, MULTIPLE_PERMISSIVE, MUTABLE_SEARCH_PATH (SECURITY DEFINER without search_path), VIEW_NO_SECURITY_INVOKER and MATVIEW_EXPOSED (only if the API roles can select them), SERVICE_ROLE_EXPOSED, JWT_SECRET_EXPOSED.
 
 Judgment (label only when exploitable):
 - USING_TRUE: `true` on a write, or on SELECT of data not meant to be public. Public catalogs (`products`, published posts) are not findings.

@@ -18,6 +18,10 @@ Rules:
 - Functions that check auth.uid()/auth.role() or are pure helpers touching no data are not EXPOSED_RPC_NO_AUTH.
 - MASS_ASSIGNMENT: authenticated can UPDATE a privilege or billing column (whatever its name) on rows it may update.
 - A table with policies but RLS disabled is POLICIES_BUT_NO_RLS only, not also RLS_DISABLED.
+- RLS off is only exploitable if anon or authenticated has privileges on the table (Q1 anon_access/auth_access).
+  With no API grants it is not RLS_DISABLED.
+- A SECURITY INVOKER function runs with the caller's grants: if anon/authenticated lack privileges on every table it
+  writes or reads, calling it via /rpc just fails, so it is not EXPOSED_RPC_NO_AUTH. SECURITY DEFINER bypasses this.
 - One finding per (pattern_id, object). object = schema.name lowercase (policies -> their table; functions without args),
   storage.<bucket> for buckets, or the file path from the repo scan. Column-level issues use the table.
 - evidence: a short quote of the row/policy/column that proves it."""

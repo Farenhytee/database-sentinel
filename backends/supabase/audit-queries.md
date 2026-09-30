@@ -18,14 +18,22 @@ Complete SQL query library for Supabase security introspection. Run these via th
 
 ### Q1: All tables in public schema with RLS status
 
-This is the single most important query. Any table with `rowsecurity = false` is fully exposed to anyone with the anon key.
+This is the single most important query. A table with `rowsecurity = false` is fully exposed to anyone with the anon key **if** `anon` or `authenticated` has privileges on it (Supabase's default). With those grants revoked, the Data API can't reach it.
 
 ```sql
 SELECT
   schemaname,
   tablename,
   rowsecurity AS rls_enabled,
-  CASE WHEN rowsecurity THEN '✅' ELSE '🔴 EXPOSED' END AS status
+  has_table_privilege('anon', format('%I.%I', schemaname, tablename), 'SELECT,INSERT,UPDATE,DELETE') AS anon_access,
+  has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'SELECT,INSERT,UPDATE,DELETE') AS auth_access,
+  CASE
+    WHEN rowsecurity THEN '✅'
+    WHEN has_table_privilege('anon', format('%I.%I', schemaname, tablename), 'SELECT,INSERT,UPDATE,DELETE')
+      OR has_table_privilege('authenticated', format('%I.%I', schemaname, tablename), 'SELECT,INSERT,UPDATE,DELETE')
+      THEN '🔴 EXPOSED'
+    ELSE '🟡 RLS off, no API grants'
+  END AS status
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY rowsecurity ASC, tablename;

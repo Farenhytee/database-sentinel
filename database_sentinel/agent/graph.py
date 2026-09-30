@@ -1,4 +1,5 @@
-"""detect -> introspect -> analyze -> verify -> score -> report [-> approve (HITL) -> fix]."""
+"""detect -> introspect -> analyze -> verify -> score -> report [-> approve (HITL) -> fix].
+analyze: one structured prompt (standard) or a tool-using ReAct agent (deep=True). Same test F1, deep costs ~5x (C21)."""
 import json
 from typing import TypedDict
 
@@ -64,14 +65,29 @@ def _tools(t: Target):
     return [get_schema, run_audit_query, probe_as_anon]
 
 
+def single_prompt(intro: dict, config: dict | None = None) -> list[dict]:
+    """One structured-output call over the full introspection dump (eval system B0)."""
+    llm = get_model().with_structured_output(Findings)
+    out = llm.invoke([("system", analyst_prompt()), ("user", json.dumps(intro, default=str))], config)
+    return clean([f.model_dump() for f in out.findings])
+
+
+def _with_severity(findings: list[dict]) -> State:
+    return {"findings": [{**f, "severity": severity(f["pattern_id"])} for f in findings], "model": model_id()}
+
+
+def analyze_standard(s: State) -> State:
+    return _with_severity(single_prompt(s["introspection"]))
+
+
 def analyze(s: State, runtime: Runtime[Target]) -> State:
+    """Deep mode: tool-using ReAct agent."""
     # handle_tool_errors: a bad tool arg goes back to the model as an error message instead of ending the audit
-    agent = create_react_agent(get_model(), ToolNode(_tools(runtime.context), handle_tool_errors=True), prompt=analyst_prompt() + AGENT_SUFFIX,
-                               response_format=(EXTRACT_PROMPT, Findings))
+    agent = create_react_agent(get_model(), ToolNode(_tools(runtime.context), handle_tool_errors=True),
+                               prompt=analyst_prompt() + AGENT_SUFFIX, response_format=(EXTRACT_PROMPT, Findings))
     msg = json.dumps({"introspection": s["introspection"], "candidates": s["candidates"]}, default=str)
     out = agent.invoke({"messages": [("user", msg)]}, {"recursion_limit": 25})
-    findings = clean([f.model_dump() for f in out["structured_response"].findings])
-    return {"findings": [{**f, "severity": severity(f["pattern_id"])} for f in findings], "model": model_id()}
+    return _with_severity(clean([f.model_dump() for f in out["structured_response"].findings]))
 
 
 # Patterns where anon reading rows proves the finding. Others (authenticated-only) can't be probed as anon.
@@ -121,10 +137,10 @@ def approve(s: State) -> State:
     return {"fixes": [fix_for(s["findings"][i]) for i in picked or [] if 0 <= i < len(s["findings"])]}
 
 
-def build_graph(checkpointer=None, fixes: bool = False):
-    """fixes=True adds the approval pause + fix step and needs a checkpointer (MemorySaver locally, PostgresSaver in cloud)."""
+def build_graph(checkpointer=None, fixes: bool = False, deep: bool = False):
+    """deep=True uses the ReAct agent for analyze. fixes=True adds the approval pause + fix step and needs a checkpointer (MemorySaver locally, PostgresSaver in cloud)."""
     g = StateGraph(State, context_schema=Target)
-    steps = [("detect", detect), ("introspect", do_introspect), ("analyze", analyze), ("verify", verify),
+    steps = [("detect", detect), ("introspect", do_introspect), ("analyze", analyze if deep else analyze_standard), ("verify", verify),
              ("score", do_score), ("report", report)] + ([("approve", approve)] if fixes else [])
     for name, fn in steps:
         g.add_node(name, fn)

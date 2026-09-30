@@ -1,0 +1,4 @@
+findings:
+  - {pattern_id: RLS_DISABLED, object: public.site_feedback}
+  - {pattern_id: SECURITY_DEFINER_EXPOSED, object: public.reset_feedback}
+  - {pattern_id: EXPOSED_RPC_NO_AUTH, object: public.reset_feedback}

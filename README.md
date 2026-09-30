@@ -6,9 +6,21 @@
 
 Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for any AI client, or a **CLI agent** that uses your own model (both Supabase).
 
+**→ [MCP server setup and usage guide](docs/mcp.md)**
+
 ---
 
 ## Changelog
+
+**v1.0.0 (2026-09-30): MCP server release**
+- **[MCP server](docs/mcp.md) v1.0:** four read-only Supabase tools, an `audit` prompt and the catalog resources. Its `audit` prompt uses the rules of the benchmarked single-prompt audit: test F1 0.849 and critical recall 1.0 with `deepseek-v4-flash`. The MCP flow itself isn't benchmarked yet.
+- **Verified on hosted Supabase:** session pooler, read-only role with `BYPASSRLS`, all 20 queries.
+- **Fewer false alarms:**
+  - Q1 now checks API grants: RLS off with `anon`/`authenticated` revoked isn't reported as exposed.
+  - The audit prompt knows SECURITY INVOKER functions only have the caller's rights.
+  - Found on a real project; new dev case `026`.
+- **Pin a version:** `git+https://github.com/Farenhytee/database-sentinel@v1.0.0` in any `uvx`/`pipx` command. The Claude Code plugin is pinned automatically.
+- **Standard audit is now the CLI default:** one prompt plus anon-probe verification, ~$0.0007 and ~15s per audit. `--deep` runs the tool-using agent, which scored the same on our bench at ~5× the cost.
 
 **v0.2.1 (2026-09-30)**
 - **Test F1:** agent 0.782 → 0.831, single-prompt 0.766 → 0.849. No crashes or timeouts ([results](docs/evals/2026-09-30-test-v0.2.1.md)).
@@ -49,7 +61,7 @@ claude plugin install database-sentinel@database-sentinel
 ```
 Supabase users: create the read-only login ([step 1](docs/mcp.md#1-create-a-read-only-login-in-supabase)), then run `/plugin configure database-sentinel@database-sentinel` in Claude Code. Then ask: `Audit my database`.
 
-**Cursor** &nbsp; [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=sentinel&config=eyJzZW50aW5lbCI6eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL0ZhcmVuaHl0ZWUvZGF0YWJhc2Utc2VudGluZWwiLCJzZW50aW5lbC1tY3AiXSwiZW52Ijp7IlNFTlRJTkVMX0RTTiI6InBvc3RncmVzcWw6Ly9zZW50aW5lbF9hdWRpdG9yOlBBU1NXT1JEQGRiLlBST0pFQ1RfUkVGLnN1cGFiYXNlLmNvOjU0MzIvcG9zdGdyZXMiLCJTRU5USU5FTF9SRVNUX1VSTCI6Imh0dHBzOi8vUFJPSkVDVF9SRUYuc3VwYWJhc2UuY28iLCJTRU5USU5FTF9BTk9OX0tFWSI6IkFOT05fS0VZIiwiU0VOVElORUxfUkVQTyI6IiJ9fX0%3D)
+**Cursor** &nbsp; [![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=sentinel&config=eyJzZW50aW5lbCI6eyJjb21tYW5kIjoidXZ4IiwiYXJncyI6WyItLWZyb20iLCJnaXQraHR0cHM6Ly9naXRodWIuY29tL0ZhcmVuaHl0ZWUvZGF0YWJhc2Utc2VudGluZWwiLCJzZW50aW5lbC1tY3AiXSwiZW52Ijp7IlNFTlRJTkVMX0RTTiI6InBvc3RncmVzcWw6Ly9zZW50aW5lbF9hdWRpdG9yLlBST0pFQ1RfUkVGOlBBU1NXT1JEQFBPT0xFUl9IT1NUOjU0MzIvcG9zdGdyZXMiLCJTRU5USU5FTF9SRVNUX1VSTCI6Imh0dHBzOi8vUFJPSkVDVF9SRUYuc3VwYWJhc2UuY28iLCJTRU5USU5FTF9BTk9OX0tFWSI6IkFOT05fS0VZIiwiU0VOVElORUxfUkVQTyI6IiJ9fX0%3D)
 
 **Other MCP clients, and full setup:** [MCP guide](docs/mcp.md)
 
@@ -68,6 +80,7 @@ export SENTINEL_BASE_URL=http://localhost:11434/v1 SENTINEL_MODEL=<model>   # Ol
 sentinel-audit --dsn "postgresql://sentinel_auditor:<password>@<host>:5432/postgres" \
   --rest-url https://<ref>.supabase.co --anon-key <anon key> --repo ./my-app
 ```
+The default audit is one prompt plus anon-probe verification. `--deep` runs a tool-using agent instead: same accuracy on our bench, ~5× the cost. `--fix` prints fix SQL for the findings you pick; it's never executed.
 </details>
 
 ---

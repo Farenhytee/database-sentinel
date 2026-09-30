@@ -1,7 +1,7 @@
 {
   "name": "database-sentinel",
   "displayName": "Database Sentinel",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "description": "Security audits for Supabase and MongoDB: the audit skill plus read-only Supabase MCP tools.",
   "author": { "name": "Paarth Jha", "url": "https://github.com/Farenhytee" },
   "homepage": "https://github.com/Farenhytee/database-sentinel",
@@ -24,7 +24,7 @@
     "supabase_dsn": {
       "type": "string",
       "title": "Read-only connection string",
-      "description": "postgresql://sentinel_auditor:<password>@db.<ref>.supabase.co:5432/postgres (Supabase only; create the role first: docs/mcp.md step 1)",
+      "description": "postgresql://sentinel_auditor.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres (Connect → Session pooler) (Supabase only; create the role first: docs/mcp.md step 1)",
       "sensitive": true,
       "default": ""
     },
