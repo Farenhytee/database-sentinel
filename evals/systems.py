@@ -26,5 +26,12 @@ def _graph(deep):
     return run
 
 
-# s = standard audit (B0 + verify, the default); a = deep audit (ReAct agent)
-SYSTEMS = {"r0": run_r0, "b0": run_b0, "s": _graph(False), "a": _graph(True)}
+def run_m(t, intro):
+    """MCP client: the model drives the real sentinel-mcp server over stdio (intro unused)."""
+    from .mcp_client import mcp_audit
+    u = Usage()
+    return mcp_audit(t, {"callbacks": callbacks(u)}), u.as_dict()
+
+
+# m = MCP client; s = standard audit (B0 + verify, the default); a = deep audit (ReAct agent)
+SYSTEMS = {"r0": run_r0, "b0": run_b0, "s": _graph(False), "a": _graph(True), "m": run_m}

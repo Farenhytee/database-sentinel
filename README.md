@@ -12,8 +12,11 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 
 ## Changelog
 
+**2026-09-30 (docs)**
+- **MCP flow benchmarked:** a model driving the real server over stdio scored test F1 0.865, precision 0.905, critical recall 1.0 ([results](docs/evals/2026-09-30-test-mcp.md)). Harness: `evals/mcp_client.py`, eval system `m`.
+
 **v1.0.0 (2026-09-30): MCP server release**
-- **[MCP server](docs/mcp.md) v1.0:** four read-only Supabase tools, an `audit` prompt and the catalog resources. Its `audit` prompt uses the rules of the benchmarked single-prompt audit: test F1 0.849 and critical recall 1.0 with `deepseek-v4-flash`. The MCP flow itself isn't benchmarked yet.
+- **[MCP server](docs/mcp.md) v1.0:** four read-only Supabase tools, an `audit` prompt and the catalog resources. Benchmarked end to end: a model driving the server over stdio scored test F1 0.865, with critical recall 1.0.
 - **Verified on hosted Supabase:** session pooler, read-only role with `BYPASSRLS`, all 20 queries.
 - **Fewer false alarms:**
   - Q1 now checks API grants: RLS off with `anon`/`authenticated` revoked isn't reported as exposed.
@@ -189,6 +192,7 @@ Test split (10 blind, locked cases), `deepseek-v4-flash`, 3 runs each:
 
 | Version | System | Precision | Recall | F1 | CRITICAL recall | $/audit |
 |---|---|---|---|---|---|---|
+| v1.0.0 | **MCP server** (model as MCP client, [details](docs/evals/2026-09-30-test-mcp.md)) | 0.905 | 0.833 | **0.865** | 1.000 | $0.0037 |
 | v0.2.1 | A (agent) | 0.851 | 0.818 | **0.831** | 1.000 | $0.0044 |
 | v0.2.1 | B0 (single prompt) | 0.810 | 0.894 | **0.849** | 1.000 | $0.0008 |
 | v0.2.0 (frozen, [details](docs/evals/2026-09-29-test.md)) | A (agent) | 0.774 | 0.803 | 0.782 | 1.000 | $0.0024 |

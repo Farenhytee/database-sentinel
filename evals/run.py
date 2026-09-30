@@ -15,6 +15,7 @@ from .systems import SYSTEMS, introspect
 
 RUNS = bench.ROOT / "results" / "runs.jsonl"
 DEADLINE_S = 300  # hard wall clock per system per case; a stalled LLM request can outlive the client timeout
+DEADLINE_OVERRIDE = {"m": 600}  # MCP client gathers all data itself: ~20+ tool calls
 
 
 def _timeout(*_):
@@ -54,7 +55,7 @@ def evaluate(split: str, systems: list[str], only: list[str] | None = None) -> d
         for s in systems:
             t0 = time.time()
             signal.signal(signal.SIGALRM, _timeout)
-            signal.setitimer(signal.ITIMER_REAL, DEADLINE_S, 5)  # re-fires every 5s: the OpenAI client swallows one TimeoutError and retries
+            signal.setitimer(signal.ITIMER_REAL, DEADLINE_OVERRIDE.get(s, DEADLINE_S), 5)  # re-fires every 5s: the OpenAI client swallows one TimeoutError and retries
             try:
                 pred, u = SYSTEMS[s](t, intro)
             except Exception as e:  # one failed case must not kill the run

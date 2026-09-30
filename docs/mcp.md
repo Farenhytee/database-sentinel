@@ -91,7 +91,7 @@ You get findings grouped by severity, each with evidence and a fix you can revie
 
 ## Accuracy
 
-The `audit` prompt carries the same rules as Sentinel's benchmarked single-prompt audit. On a blind test split of 10 Supabase projects (3 runs, `deepseek-v4-flash`), that audit scored **F1 0.849** and found every CRITICAL issue ([results](evals/2026-09-30-test-v0.2.1.md)). That run handed the model the data directly. Here your client's model gathers it through the tools, and that flow isn't benchmarked yet, so results depend on your client's model.
+Benchmarked end to end: a model acting as an MCP client started this server, used its `audit` prompt and gathered everything through the four tools. On a locked test split of 10 Supabase projects (3 runs) it scored **F1 0.865** (precision 0.905, recall 0.833) and found every CRITICAL issue, at ~$0.004 and ~1 minute per audit ([results](evals/2026-09-30-test-mcp.md)). That was a small open-weights model; your client's model will differ.
 
 ## Configuration
 

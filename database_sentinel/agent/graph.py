@@ -1,5 +1,5 @@
 """detect -> introspect -> analyze -> verify -> score -> report [-> approve (HITL) -> fix].
-analyze: one structured prompt (standard) or a tool-using ReAct agent (deep=True). Same test F1, deep costs ~5x (C21)."""
+analyze: one structured prompt (standard) or a tool-using ReAct agent (deep=True). Same test F1, deep costs ~5x (C22)."""
 import json
 from typing import TypedDict
 
