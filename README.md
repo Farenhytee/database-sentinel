@@ -12,6 +12,10 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 
 ## Changelog
 
+**2026-10-01 (v1.0.1)**
+- **Fixed:** an UPDATE policy without WITH CHECK is no longer reported as letting users reassign row ownership (Postgres reuses USING as the check). Q8's label and the agent prompt said otherwise, which produced false mass-assignment findings on real projects.
+- Benchmark: new dev case 027 from that project. Test F1 unchanged (0.836 vs 0.838, same day). [Runs](docs/evals/README.md).
+
 **2026-09-30 (docs)**
 - **MCP flow benchmarked:** a model driving the real server over stdio scored test F1 0.865, precision 0.905, critical recall 1.0 ([results](docs/evals/2026-09-30-test-mcp.md)). Harness: `evals/mcp_client.py`, eval system `m`.
 

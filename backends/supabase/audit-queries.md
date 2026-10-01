@@ -159,7 +159,7 @@ WHERE schemaname = 'public'
 
 ### Q8: UPDATE policies missing WITH CHECK (mass assignment risk)
 
-UPDATE policies need both USING (which rows can be updated) and WITH CHECK (what values are allowed). Without WITH CHECK, users can change ownership columns.
+Without WITH CHECK, Postgres reuses USING as the check, so ownership can't be reassigned. Add WITH CHECK anyway to make it explicit.
 
 ```sql
 SELECT
@@ -167,7 +167,7 @@ SELECT
   policyname,
   qual AS using_expr,
   with_check,
-  '🟠 HIGH: UPDATE policy without WITH CHECK — users may reassign row ownership' AS risk
+  'ℹ️ INFO: no WITH CHECK — Postgres reuses USING as the check; ownership cannot be reassigned' AS risk
 FROM pg_policies
 WHERE schemaname = 'public'
   AND cmd = 'UPDATE'

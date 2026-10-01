@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "database-sentinel"
-version = "1.0.0"
+version = "1.0.1"
 description = "Supabase security audit: read-only MCP tools, lite LangGraph agent, Claude Skill."
 readme = "README.md"
 requires-python = ">=3.11"

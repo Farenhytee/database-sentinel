@@ -17,6 +17,8 @@ Rules:
 - A public bucket for public assets (avatars) is intended; for private content (invoices, documents) it is a finding.
 - Functions that check auth.uid()/auth.role() or are pure helpers touching no data are not EXPOSED_RPC_NO_AUTH.
 - MASS_ASSIGNMENT: authenticated can UPDATE a privilege or billing column (whatever its name) on rows it may update.
+  An UPDATE policy without WITH CHECK is not a finding by itself: Postgres reuses USING as the check, so the owner
+  column cannot be reassigned.
 - A table with policies but RLS disabled is POLICIES_BUT_NO_RLS only, not also RLS_DISABLED.
 - RLS off is only exploitable if anon or authenticated has privileges on the table (Q1 anon_access/auth_access).
   With no API grants it is not RLS_DISABLED.
