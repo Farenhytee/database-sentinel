@@ -8,6 +8,8 @@ Works as a **Claude Skill** (Supabase, MongoDB), a **read-only MCP server** for 
 
 **→ [MCP server setup and usage guide](docs/mcp.md)**
 
+**→ Don't want to run it yourself? [Locksoup](https://locksoup.com) is the hosted version: a Supabase security audit with scheduled re-checks and alerts.**
+
 ---
 
 ## Changelog
